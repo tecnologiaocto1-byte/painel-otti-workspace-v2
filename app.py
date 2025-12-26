@@ -6,6 +6,7 @@ from supabase import create_client
 import json
 import time
 import os
+import uuid # <--- ADICIONEI ESTA BIBLIOTECA
 from datetime import datetime, timedelta
 
 # ==============================================================================
@@ -44,7 +45,6 @@ st.markdown(f"""
 
     .stApp {{ background-color: {C_BG_OCTO_LIGHT}; color: {C_TEXT_DARK}; font-family: 'Inter', sans-serif; }}
     
-    /* --- SIDEBAR --- */
     section[data-testid="stSidebar"] {{ 
         background-color: {C_SIDEBAR_NAVY}; 
         border-right: 1px solid rgba(255,255,255,0.1); 
@@ -53,12 +53,10 @@ st.markdown(f"""
     section[data-testid="stSidebar"] span, 
     section[data-testid="stSidebar"] label {{ color: #FFFFFF !important; }}
 
-    /* --- TÍTULOS --- */
     h1 {{ font-family: 'Sora', sans-serif; color: {C_SIDEBAR_NAVY} !important; font-weight: 800; }}
     h2, h3, h4 {{ font-family: 'Sora', sans-serif; color: {C_TEXT_DARK} !important; font-weight: 700; }}
     p, label {{ color: {C_TEXT_DARK} !important; }}
 
-    /* --- INPUTS --- */
     .stTextInput > div > div > input, .stTextArea > div > div > textarea {{
         background-color: #FFFFFF !important;
         color: #000000 !important;
@@ -74,7 +72,6 @@ st.markdown(f"""
     div[data-baseweb="popover"] {{ background-color: #FFFFFF !important; }}
     div[data-baseweb="option"] {{ color: #000000 !important; }}
 
-    /* --- BOTÕES --- */
     button[kind="primary"] {{
         background: linear-gradient(90deg, #3F00FF 0%, #031A89 100%) !important;
         color: #FFFFFF !important; border: none !important; padding: 0.6rem 1.2rem; border-radius: 6px;
@@ -97,7 +94,6 @@ st.markdown(f"""
     }}
     section[data-testid="stSidebar"] button p {{ color: #FFFFFF !important; }}
 
-    /* Cards */
     div[data-testid="stMetric"] {{ 
         background-color: {C_CARD_WHITE}; 
         border: 1px solid #E2E8F0; 
@@ -213,7 +209,6 @@ k3.metric("Atendimentos", c_data['total_atendimentos'])
 k4.metric("Status Atual", "Online 🟢" if active else "Offline 🔴")
 st.markdown("<br>", unsafe_allow_html=True)
 
-# RETIRADA ABA ESPIÃO
 tabs = st.tabs(["📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
 
 # ==============================================================================
@@ -308,32 +303,23 @@ with tabs[0]:
     except Exception as e: st.error(f"Erro Visual: {e}")
 
 # ==============================================================================
-# ABA 2: PRODUTOS (ATUALIZADA)
+# ABA 2: PRODUTOS (CORREÇÃO DE ID NULO)
 # ==============================================================================
 with tabs[1]:
     c1, c2 = st.columns([2,1])
     with c1:
-        # Busca colunas incluindo 'regras_preco' para extrair o valor
         rp = supabase.table('produtos').select('nome, categoria, regras_preco').eq('cliente_id', c_id).order('nome').execute()
         if rp.data:
             df_prod = pd.DataFrame(rp.data)
-            
-            # Lógica para extrair o preço do JSONB
             def extrair_preco(x):
                 try:
-                    # Se vier como dict
                     if isinstance(x, dict): return x.get('preco_padrao', 0)
-                    # Se vier como string (caso raro, mas possível), tenta converter
                     if isinstance(x, str): return json.loads(x).get('preco_padrao', 0)
                     return 0
                 except: return 0
-
             df_prod['Preço (R$)'] = df_prod['regras_preco'].apply(extrair_preco)
-            
-            # Seleciona e renomeia apenas as colunas desejadas (Sem 'ativo', com 'preço')
             df_display = df_prod[['nome', 'categoria', 'Preço (R$)']]
             df_display.columns = ['Nome', 'Categoria', 'Preço (R$)']
-            
             st.dataframe(df_display, use_container_width=True, hide_index=True)
         else:
             st.info("Nenhum produto cadastrado.")
@@ -342,21 +328,18 @@ with tabs[1]:
         with st.form("add"):
             st.markdown("#### 🆕 Novo Item")
             n = st.text_input("Nome")
-            
-            # MUDANÇA: Selectbox para padronização
             c = st.selectbox("Categoria", ["Serviço", "Produto"])
-            
             p = st.number_input("Preço", min_value=0.0, step=10.0)
             
             if st.form_submit_button("Salvar", type="primary"):
-                # Dicionário do preço
                 js = {"preco_padrao": p, "duracao_minutos": 60}
-                
                 try:
-                    # CORREÇÃO DO ERRO API:
-                    # Passamos 'js' (dict) direto, e não json.dumps(js) (string).
-                    # A biblioteca do supabase faz a conversão correta para JSONB.
+                    # CORREÇÃO CRÍTICA AQUI:
+                    # Se o banco não tem auto-incremento configurado, geramos o UUID manualmente.
+                    new_id = str(uuid.uuid4())
+                    
                     supabase.table('produtos').insert({
+                        "id": new_id, # <--- Enviando ID explícito
                         "cliente_id": c_id, 
                         "nome": n, 
                         "categoria": c, 
