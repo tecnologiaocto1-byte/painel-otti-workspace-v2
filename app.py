@@ -12,7 +12,7 @@ from services import (
     supabase, 
     fetch_kpis, 
     fetch_financial_history, 
-    toggle_bot_status
+    toggle_bot_status)
 
 apply_styling()
 
@@ -141,3 +141,4 @@ with tab_config:
     else:
 
         st.info("Entre em contato com o suporte para alterar a personalidade do seu Otti.")
+
