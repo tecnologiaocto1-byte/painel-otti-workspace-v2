@@ -1,26 +1,53 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 from supabase import create_client
 import json
 import time
 import os
-from datetime import datetime, timedelta, time as dt_time
-
-# ... (MANTENHA TODO O SETUP, CSS E LOGIN IGUAIS AO ANTERIOR) ...
-# Vou colocar aqui o código completo para você copiar e colar sem erro.
+from datetime import datetime, timedelta
 
 # ==============================================================================
 # 1. SETUP
 # ==============================================================================
 st.set_page_config(page_title="Otti Workspace", layout="wide", page_icon="🐙")
 
-# --- CORES DO NOVO DESIGN (OCTO) ---
-C_BG_OCTO_LIGHT = "#E2E8F0"
-C_SIDEBAR_NAVY  = "#031A89"
-C_ACCENT_NEON   = "#3F00FF"
-C_TEXT_DARK     = "#101828"
-C_CARD_WHITE    = "#FFFFFF"
-C_BTN_DARK      = "#031A89"
+# --- DEFINIÇÃO DE TEMAS ---
+if 'theme' not in st.session_state: 
+    st.session_state['theme'] = 'dark'
+
+# Definição de Cores Baseadas no Tema
+if st.session_state['theme'] == 'dark':
+    P = {
+        'bg': "#001024",
+        'sidebar': "#020A14",
+        'text': "#F8FAFC",
+        'card': "rgba(3, 26, 137, 0.2)",
+        'input_bg': "#0B1221",
+        'input_text': "#FFFFFF",
+        'input_border': "#3F00FF", # Borda Neon no Dark
+        'metric_val': "#E7F9A9",
+        'btn_bg': "#0B1221",
+        'btn_text': "#FFFFFF",
+        'chart_template': 'plotly_dark',
+        'sidebar_text': "#FFFFFF" # Texto forçado branco na sidebar escura
+    }
+else:
+    # LIGHT MODE "CLEAN" (Estilo Antigo/Padrão)
+    P = {
+        'bg': "#F0F2F5",
+        'sidebar': "#FFFFFF", # Sidebar Branca
+        'text': "#101828",
+        'card': "#FFFFFF",
+        'input_bg': "#FFFFFF",
+        'input_text': "#000000",
+        'input_border': "#E0E0E0", # Borda suave no Light
+        'metric_val': "#3F00FF",
+        'btn_bg': "#FFFFFF",
+        'btn_text': "#000000",
+        'chart_template': 'plotly_white',
+        'sidebar_text': "#101828" # Texto escuro na sidebar clara
+    }
 
 # ==============================================================================
 # 2. CONEXÃO
@@ -37,74 +64,80 @@ def init_connection():
 supabase = init_connection()
 
 # ==============================================================================
-# 3. CSS
+# 3. CSS INTELIGENTE (CORRIGIDO)
 # ==============================================================================
 st.markdown(f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;800&family=Inter:wght@300;400;600&display=swap');
 
-    .stApp {{ background-color: {C_BG_OCTO_LIGHT}; color: {C_TEXT_DARK}; font-family: 'Inter', sans-serif; }}
+    .stApp {{ background-color: {P['bg']}; color: {P['text']}; font-family: 'Inter', sans-serif; }}
     
+    /* --- SIDEBAR --- */
     section[data-testid="stSidebar"] {{ 
-        background-color: {C_SIDEBAR_NAVY}; 
-        border-right: 1px solid rgba(255,255,255,0.1); 
+        background-color: {P['sidebar']}; 
+        border-right: 1px solid rgba(0,0,0,0.05); 
     }}
+    
+    /* Cor do texto da Sidebar dinâmica */
     section[data-testid="stSidebar"] p, 
     section[data-testid="stSidebar"] span, 
-    section[data-testid="stSidebar"] label {{ color: #FFFFFF !important; }}
+    section[data-testid="stSidebar"] label {{ color: {P['sidebar_text']} !important; }}
 
-    h1 {{ font-family: 'Sora', sans-serif; color: {C_SIDEBAR_NAVY} !important; font-weight: 800; }}
-    h2, h3, h4 {{ font-family: 'Sora', sans-serif; color: {C_TEXT_DARK} !important; font-weight: 700; }}
-    p, label {{ color: {C_TEXT_DARK} !important; }}
+    h1, h2, h3, h4 {{ font-family: 'Sora', sans-serif; color: {P['text']} !important; font-weight: 700; }}
+    p, label {{ color: {P['text']} !important; }}
 
+    /* --- INPUTS & SELECTBOX --- */
+    /* Removemos o !important agressivo das cores para o Light Mode fluir melhor */
     .stTextInput > div > div > input, .stTextArea > div > div > textarea {{
-        background-color: #FFFFFF !important;
-        color: #000000 !important;
-        border: 1px solid #CBD5E1;
+        background-color: {P['input_bg']} !important;
+        color: {P['input_text']} !important;
+        border: 1px solid {P['input_border']};
         border-radius: 8px;
     }}
     
+    /* Selectbox Container */
     div[data-baseweb="select"] > div {{
-        background-color: #FFFFFF !important;
-        border-color: #CBD5E1 !important;
+        background-color: {P['input_bg']} !important;
+        border-color: {P['input_border']} !important;
+        color: {P['input_text']} !important;
     }}
-    div[data-baseweb="select"] span {{ color: #000000 !important; }}
-    div[data-baseweb="popover"] {{ background-color: #FFFFFF !important; }}
-    div[data-baseweb="option"] {{ color: #000000 !important; }}
+    
+    /* Texto do Selectbox e Dropdown */
+    div[data-baseweb="select"] span, div[data-baseweb="popover"] {{ 
+        color: {P['input_text']} !important; 
+    }}
+    
+    /* Opções do Menu Dropdown */
+    div[data-baseweb="option"] {{
+        background-color: {P['input_bg']} !important;
+        color: {P['input_text']} !important;
+    }}
 
+    /* --- BOTÃO PRIMARY --- */
     button[kind="primary"] {{
         background: linear-gradient(90deg, #3F00FF 0%, #031A89 100%) !important;
         color: #FFFFFF !important; border: none !important; padding: 0.6rem 1.2rem; border-radius: 6px;
     }}
 
+    /* --- BOTÃO SECUNDÁRIO --- */
     div[data-testid="stAppViewContainer"] .main .stButton > button {{
-        background-color: {C_BTN_DARK} !important;
-        color: #FFFFFF !important;
-        border: none !important;
-        font-weight: 600;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }}
-    div[data-testid="stAppViewContainer"] .main .stButton > button:hover {{
-        background-color: #3F00FF !important;
-        color: #FFFFFF !important;
+        background-color: {P['btn_bg']} !important;
+        color: {P['btn_text']} !important;
+        border: 1px solid {P['input_border']} !important;
     }}
 
-    section[data-testid="stSidebar"] button {{
-        background-color: transparent !important; border: 1px solid rgba(255,255,255,0.5) !important;
-    }}
-    section[data-testid="stSidebar"] button p {{ color: #FFFFFF !important; }}
-
+    /* Cards/Metrics */
     div[data-testid="stMetric"] {{ 
-        background-color: {C_CARD_WHITE}; 
-        border: 1px solid #E2E8F0; 
-        border-radius: 10px; 
+        background-color: {P['card']}; 
+        border: 1px solid {P['input_border']}; 
+        border-radius: 8px; 
         padding: 15px; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.03); 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
     }}
-    div[data-testid="stMetricValue"] {{ color: {C_ACCENT_NEON} !important; font-family: 'Sora', sans-serif; font-weight: 700; }}
-    label[data-testid="stMetricLabel"] {{ color: #64748B !important; font-weight: 500; }}
-
+    div[data-testid="stMetricValue"] {{ color: {P['metric_val']} !important; font-family: 'Sora', sans-serif; }}
+    
     .login-wrapper {{ margin-top: 10vh; max-width: 400px; margin-left: auto; margin-right: auto; text-align: center; }}
+    #MainMenu, footer, header {{visibility: hidden;}}
     .block-container {{padding-top: 2rem;}}
 </style>
 """, unsafe_allow_html=True)
@@ -113,8 +146,8 @@ st.markdown(f"""
 # 4. LOGIN
 # ==============================================================================
 def render_logo(width=100):
-    if os.path.exists("logo.png"): st.image("logo.png", width=width)
-    else: st.markdown(f"<h1 style='color:{C_ACCENT_NEON}; margin:0; font-family:Sora; text-align:center;'>OCTO</h1>", unsafe_allow_html=True)
+    # Fallback visual se não tiver imagem
+    st.markdown(f"<h1 style='color:#3F00FF; margin:0; font-family:Sora; text-align:center; font-size: 2rem;'>OCTO</h1>", unsafe_allow_html=True)
 
 if 'usuario_logado' not in st.session_state: st.session_state['usuario_logado'] = None
 
@@ -123,7 +156,7 @@ def render_login_screen():
     with c2:
         st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
         render_logo(width=120)
-        st.markdown(f"<h3 style='margin-bottom:30px; color:{C_TEXT_DARK}; text-align:center;'>Otti Workspace</h3>", unsafe_allow_html=True)
+        st.markdown(f"<h3 style='margin-bottom:30px; color:{P['text']}; text-align:center;'>Otti Workspace</h3>", unsafe_allow_html=True)
         
         with st.form("login_master"):
             email = st.text_input("E-mail")
@@ -136,6 +169,7 @@ def render_login_screen():
                     if not supabase: st.error("Erro interno.")
                     else:
                         try:
+                            # Tabela simplificada para o exemplo
                             res = supabase.table('acesso_painel').select('*').eq('email', email).eq('senha', senha).execute()
                             if res.data:
                                 st.session_state['usuario_logado'] = res.data[0]
@@ -152,67 +186,91 @@ if not st.session_state['usuario_logado']:
 # 5. DASHBOARD
 # ==============================================================================
 user = st.session_state['usuario_logado']
-perfil = user['perfil']
+perfil = user.get('perfil', 'user')
 
+# SIDEBAR
 with st.sidebar:
     st.markdown("<br>", unsafe_allow_html=True)
     render_logo(width=130)
     st.markdown("---")
-    st.write(f"Olá, **{user['nome_usuario']}**")
+    st.write(f"Olá, **{user.get('nome_usuario', 'User')}**")
+    
+    dark_on = (st.session_state['theme'] == 'dark')
+    if st.toggle("🌙 Modo Escuro", value=dark_on):
+        if st.session_state['theme'] != 'dark':
+            st.session_state['theme'] = 'dark'
+            st.rerun()
+    else:
+        if st.session_state['theme'] != 'light':
+            st.session_state['theme'] = 'light'
+            st.rerun()
+
     st.markdown("---")
     if st.button("SAIR"):
         st.session_state['usuario_logado'] = None
         st.rerun()
 
 if not supabase: st.stop()
-try: df_kpis = pd.DataFrame(supabase.table('view_dashboard_kpis').select("*").execute().data)
+
+# Carregamento de dados
+try: 
+    # Tenta carregar KPI, se falhar cria DF vazio
+    kpis_data = supabase.table('view_dashboard_kpis').select("*").execute().data
+    df_kpis = pd.DataFrame(kpis_data) if kpis_data else pd.DataFrame()
 except:
-    st.error("Erro ao carregar dados.")
+    df_kpis = pd.DataFrame()
+
+if df_kpis.empty:
+    st.warning("Nenhum dado de KPI encontrado.")
     st.stop()
 
 if perfil == 'admin':
     lista = df_kpis['nome_empresa'].unique()
     if 'last_cli' not in st.session_state: st.session_state['last_cli'] = lista[0]
+    # Proteção caso a lista mude
     if st.session_state['last_cli'] not in lista: st.session_state['last_cli'] = lista[0]
+    
     idx = list(lista).index(st.session_state['last_cli'])
     sel = st.sidebar.selectbox("Cliente:", lista, index=idx, key="cli_selector")
     st.session_state['last_cli'] = sel
     c_data = df_kpis[df_kpis['nome_empresa'] == sel].iloc[0]
 else:
     filtro = df_kpis[df_kpis['cliente_id'] == user['cliente_id']]
-    if filtro.empty: st.stop()
+    if filtro.empty: 
+        st.error("Cliente não encontrado nos KPIs.")
+        st.stop()
     c_data = filtro.iloc[0]
 
 c_id = int(c_data['cliente_id'])
-active = not bool(c_data['bot_pausado'])
+active = not bool(c_data.get('bot_pausado', False))
 
 c1, c2 = st.columns([3, 1])
 with c1:
-    st.title(c_data['nome_empresa'])
+    st.title(c_data.get('nome_empresa', 'Empresa'))
     st.caption(f"ID: {c_id}")
 with c2:
     st.markdown("<br>", unsafe_allow_html=True)
-    lbl = "⏸️ PAUSAR SISTEMA" if active else "▶️ ATIVAR SISTEMA"
+    lbl = "⏸️ PAUSAR" if active else "▶️ ATIVAR"
     if st.button(lbl, use_container_width=True):
         supabase.table('clientes').update({'bot_pausado': active}).eq('id', c_id).execute()
         st.rerun()
 
 st.divider()
 
-tot = c_data['total_mensagens']
+tot = c_data.get('total_mensagens', 0)
 sav = round((tot * 1.5) / 60, 1)
-rev = float(c_data['receita_total'] or 0)
+rev = float(c_data.get('receita_total', 0) or 0)
 k1, k2, k3, k4 = st.columns(4)
-k1.metric("Receita Total", f"R$ {rev:,.2f}")
-k2.metric("Economia Tempo", f"{sav}h")
-k3.metric("Atendimentos", c_data['total_atendimentos'])
-k4.metric("Status Atual", "Online 🟢" if active else "Offline 🔴")
+k1.metric("Receita", f"R$ {rev:,.2f}")
+k2.metric("Tempo", f"{sav}h")
+k3.metric("Atendimentos", c_data.get('total_atendimentos', 0))
+k4.metric("Status", "Online" if active else "Offline")
 st.markdown("<br>", unsafe_allow_html=True)
 
-tabs = st.tabs(["📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
+tabs = st.tabs(["Analytics", "Espião", "Produtos", "Agenda", "Cérebro"])
 
 # ==============================================================================
-# ABA 1: ANALYTICS
+# TAB 1: ANALYTICS (CORREÇÃO DO DATE_INPUT)
 # ==============================================================================
 with tabs[0]:
     try:
@@ -229,345 +287,153 @@ with tabs[0]:
         
         if lista:
             df = pd.DataFrame(lista)
-            df['dt_full'] = pd.to_datetime(df['dt'], format='mixed')
-            df['dt'] = df['dt_full'].dt.date
+            df['dt'] = pd.to_datetime(df['dt'], format='mixed').dt.date
             df = df[df['st'] != 'Cancelado']
             
+            # --- CORREÇÃO DO DATE INPUT ---
+            # O erro acontecia aqui. Vamos calcular min e max seguros.
             min_date = df['dt'].min()
             max_date = df['dt'].max()
+            
+            # Se por acaso os dados estiverem vazios ou null, fallback para hoje
             if pd.isnull(min_date): min_date = datetime.now().date()
             if pd.isnull(max_date): max_date = datetime.now().date()
             
-            with st.container(border=True):
-                cf1, cf2 = st.columns(2)
-                with cf1:
-                    d_select = st.date_input("📅 Período", value=(min_date, max_date), min_value=min_date, max_value=max_date)
-                with cf2:
-                    prods_un = df['p'].unique()
-                    prod_sel = st.multiselect("📦 Filtrar Produtos", prods_un, default=prods_un)
-
-            df_filt = df.copy()
+            # O value padrão (hoje) deve estar DENTRO dos limites
+            default_val = datetime.now().date()
+            if default_val < min_date: default_val = min_date
+            if default_val > max_date: default_val = max_date
+            
+            # Filtro de Data
+            c_f1, c_f2 = st.columns(2)
+            with c_f1:
+                # Agora usamos variáveis seguras
+                d_select = st.date_input(
+                    "Filtrar Período", 
+                    value=(min_date, max_date), # Padrão: Todo o período
+                    min_value=min_date, 
+                    max_value=max_date
+                )
+            
+            # Aplica filtro se for um range (tupla de 2)
             if isinstance(d_select, tuple) and len(d_select) == 2:
                 start_d, end_d = d_select
-                df_filt = df_filt[(df_filt['dt'] >= start_d) & (df_filt['dt'] <= end_d)]
-            if prod_sel:
-                df_filt = df_filt[df_filt['p'].isin(prod_sel)]
-
-            st.markdown("<br>", unsafe_allow_html=True)
+                mask = (df['dt'] >= start_d) & (df['dt'] <= end_d)
+                df_filt = df.loc[mask]
+            else:
+                df_filt = df
 
             c_g1, c_g2 = st.columns(2)
             with c_g1:
-                st.markdown("##### 📈 Receita Diária")
+                st.markdown("##### Receita Diária")
                 df_g = df_filt.groupby('dt')['v'].sum().reset_index()
                 if not df_g.empty:
-                    fig = px.line(df_g, x='dt', y='v', text='v')
-                    fig.update_traces(line_shape='spline', line_color=C_ACCENT_NEON, line_width=4, textposition="top center", texttemplate='R$%{text:.0f}', mode='lines+text')
-                    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': C_TEXT_DARK}, xaxis=dict(showgrid=False, title=None), yaxis=dict(showgrid=False, showticklabels=False, title=None), margin=dict(l=0, r=0, t=20, b=20))
+                    fig = px.line(df_g, x='dt', y='v', template=P['chart_template'], markers=True)
+                    fig.update_traces(line_color="#3F00FF", line_width=3)
+                    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': P['text']})
                     st.plotly_chart(fig, use_container_width=True)
-                else: st.info("Sem dados.")
-
+                else: st.info("Sem dados no período.")
+                
             with c_g2:
-                st.markdown("##### 🍕 Share de Produtos")
-                df_top = df_filt.groupby('p')['v'].sum().reset_index()
+                st.markdown("##### Produtos Mais Vendidos")
+                df_top = df_filt['p'].value_counts().reset_index().head(5)
                 if not df_top.empty:
-                    fig2 = px.pie(df_top, values='v', names='p', hole=0.5, color_discrete_sequence=px.colors.sequential.Bluyl)
-                    fig2.update_traces(textinfo='percent+label', textposition='inside')
-                    fig2.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': C_TEXT_DARK}, showlegend=False, margin=dict(l=0, r=0, t=20, b=20))
+                    fig2 = px.bar(df_top, x='count', y='p', orientation='h', template=P['chart_template'])
+                    fig2.update_traces(marker_color="#5396FF")
+                    fig2.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': P['text']})
                     st.plotly_chart(fig2, use_container_width=True)
                 else: st.info("Sem dados.")
-
-            st.divider()
-            
-            st.markdown("#### 🚀 Tendências")
-            c_t1, c_t2 = st.columns(2)
-            with c_t1:
-                st.markdown("##### Tendência de Faturamento (Semanal)")
-                try:
-                    df_trend = df_filt.copy()
-                    df_trend['semana'] = pd.to_datetime(df_trend['dt']).dt.strftime('%Y-Semana %U')
-                    df_w = df_trend.groupby('semana')['v'].sum().reset_index()
-                    fig3 = px.bar(df_w, x='semana', y='v')
-                    fig3.update_traces(marker_color=C_SIDEBAR_NAVY, marker_line_width=0)
-                    fig3.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': C_TEXT_DARK}, xaxis=dict(showgrid=False, title=None), yaxis=dict(showgrid=True, gridcolor='#E2E8F0', title=None), margin=dict(l=0, r=0, t=20, b=20))
-                    st.plotly_chart(fig3, use_container_width=True)
-                except: st.info("Dados insuficientes.")
-            with c_t2:
-                st.markdown("##### Tendência de Produtos (Evolução)")
-                try:
-                    df_area = df_filt.groupby(['dt', 'p'])['v'].sum().reset_index()
-                    fig4 = px.area(df_area, x='dt', y='v', color='p')
-                    fig4.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': C_TEXT_DARK}, xaxis=dict(showgrid=False, title=None), yaxis=dict(showgrid=True, gridcolor='#E2E8F0', showticklabels=False, title=None), margin=dict(l=0, r=0, t=20, b=20), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
-                    st.plotly_chart(fig4, use_container_width=True)
-                except: st.info("Sem dados.")
-        else: st.info("Sem dados.")
-    except Exception as e: st.error(f"Erro Visual: {e}")
+        else:
+            st.info("Sem dados de transações.")
+    except Exception as e:
+        st.error(f"Erro Visual: {e}")
 
 # ==============================================================================
-# ABA 2: PRODUTOS
+# TAB 2: ESPIÃO
 # ==============================================================================
 with tabs[1]:
-    rp = supabase.table('produtos').select('id, nome, categoria, regras_preco').eq('cliente_id', c_id).order('nome').execute()
-    
-    if rp.data:
-        df_prod = pd.DataFrame(rp.data)
-        def extrair_preco(x):
+    cl, cr = st.columns([1, 2])
+    with cl:
+        try:
+            rc = supabase.table('conversas').select('id, cliente_wa_id, updated_at, metadata').eq('cliente_id', c_id).order('updated_at', desc=True).limit(15).execute()
+            if rc.data:
+                opts = {}
+                for c in rc.data:
+                    dt = pd.to_datetime(c['updated_at']).strftime('%d/%m %H:%M') if c['updated_at'] else ""
+                    m = c.get('metadata') or {}
+                    nm = m.get('push_name') or c['cliente_wa_id']
+                    opts[f"{nm} ({dt})"] = c['id']
+                
+                sel = st.radio("Conversas Recentes:", list(opts.keys()))
+                sid = opts[sel]
+                if st.button("🔄 Atualizar Conversas"): st.rerun()
+            else: 
+                sid = None
+                st.info("Nenhuma conversa recente.")
+        except: sid = None
+    with cr:
+        if sid:
             try:
-                if isinstance(x, dict): return x.get('preco_padrao', 0)
-                if isinstance(x, str): return json.loads(x).get('preco_padrao', 0)
-                return 0
-            except: return 0
-        df_prod['Preço (R$)'] = df_prod['regras_preco'].apply(extrair_preco)
-    else:
-        df_prod = pd.DataFrame()
-
-    c1, c2 = st.columns([2,1])
-    
-    with c1:
-        if not df_prod.empty:
-            df_display = df_prod[['nome', 'categoria', 'Preço (R$)']]
-            df_display.columns = ['Nome', 'Categoria', 'Preço (R$)']
-            st.dataframe(df_display, use_container_width=True, hide_index=True)
-        else:
-            st.info("Nenhum produto cadastrado.")
-
-    with c2:
-        with st.form("add"):
-            st.markdown("#### 🆕 Novo Item")
-            n = st.text_input("Nome")
-            c = st.selectbox("Categoria", ["Serviço", "Produto"])
-            p = st.number_input("Preço", min_value=0.0, step=10.0)
-            
-            if st.form_submit_button("Salvar", type="primary"):
-                js = {"preco_padrao": p, "duracao_minutos": 60}
-                try:
-                    supabase.table('produtos').insert({
-                        "cliente_id": c_id, 
-                        "nome": n, 
-                        "categoria": c, 
-                        "ativo": True, 
-                        "regras_preco": js 
-                    }).execute()
-                    
-                    st.success(f"Item '{n}' salvo!")
-                    time.sleep(1)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Erro ao salvar: {e}")
-
-        st.divider()
-
-        st.markdown("#### 🗑️ Excluir Item")
-        if not df_prod.empty:
-            map_del = {row['nome']: row['id'] for i, row in df_prod.iterrows()}
-            sel_del = st.selectbox("Selecione o produto", list(map_del.keys()), key="del_sel")
-            
-            if st.button("Confirmar Exclusão", type="secondary"):
-                try:
-                    id_to_del = map_del[sel_del]
-                    supabase.table('produtos').delete().eq('id', id_to_del).execute()
-                    st.success("Produto removido!")
-                    time.sleep(1)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Erro ao excluir: {e}")
-        else:
-            st.caption("Sem itens para excluir.")
+                rm = supabase.table('historico_mensagens').select('*').eq('conversa_id', sid).order('created_at', desc=True).limit(40).execute()
+                msgs = rm.data[::-1] if rm.data else []
+                cont = st.container(height=500)
+                with cont:
+                    for m in msgs:
+                        role = m['role']
+                        av = "👤" if role=='user' else "🐙"
+                        with st.chat_message(role, avatar=av): st.write(m['content'])
+            except: pass
 
 # ==============================================================================
-# ABA 3: AGENDA (VISUALIZAR, ADICIONAR E EXCLUIR)
+# TAB 3: PRODUTOS
 # ==============================================================================
 with tabs[2]:
-    
-    # 1. Carrega Dados Básicos (Produtos e Profissionais)
+    c1, c2 = st.columns([2,1])
+    with c1:
+        rp = supabase.table('produtos').select('nome, categoria, ativo').eq('cliente_id', c_id).order('nome').execute()
+        if rp.data: st.dataframe(pd.DataFrame(rp.data), use_container_width=True, hide_index=True)
+        else: st.info("Nenhum produto cadastrado.")
+    with c2:
+        with st.form("add"):
+            st.write("Novo Item")
+            n = st.text_input("Nome")
+            c = st.text_input("Categoria")
+            p = st.number_input("Preço", min_value=0.0)
+            if st.form_submit_button("Salvar", type="primary"):
+                js = {"preco_padrao": p, "duracao_minutos": 60}
+                supabase.table('produtos').insert({"cliente_id": c_id, "nome": n, "categoria": c, "ativo": True, "regras_preco": json.dumps(js)}).execute()
+                st.rerun()
+
+# ==============================================================================
+# TAB 4: AGENDA
+# ==============================================================================
+with tabs[3]:
+    st.subheader("Próximos Agendamentos")
     try:
-        res_prod = supabase.table('produtos').select('id, nome').eq('cliente_id', c_id).execute()
-        map_prod = {p['id']: p['nome'] for p in res_prod.data} if res_prod.data else {}
-        # Lista reversa para o selectbox de adicionar
-        map_prod_inv = {v: k for k, v in map_prod.items()}
-
-        map_prof = {}
-        try:
-            res_prof = supabase.table('profissionais').select('id, nome').eq('cliente_id', c_id).execute()
-            if res_prof.data: map_prof = {p['id']: p['nome'] for p in res_prof.data}
-        except: pass
-        map_prof_inv = {v: k for k, v in map_prof.items()}
-    except:
-        map_prod, map_prod_inv, map_prof, map_prof_inv = {}, {}, {}, {}
-
-    # Layout de Colunas
-    ca_left, ca_right = st.columns([2, 1])
-
-    # -----------------------------------------------------------
-    # COLUNA ESQUERDA: LISTAGEM + EXCLUSÃO
-    # -----------------------------------------------------------
-    with ca_left:
-        st.subheader("📅 Próximos Agendamentos")
+        df_final = pd.DataFrame()
+        rs = supabase.table('agendamentos_salao').select('data_reserva, valor_total_registrado, cliente_final_waid').eq('cliente_id', c_id).order('created_at', desc=True).limit(50).execute()
+        rv = supabase.table('agendamentos').select('data_hora_inicio, valor_total_registrado').eq('cliente_id', c_id).order('created_at', desc=True).limit(50).execute()
         
-        lista_agenda = []
-        delete_map = {} # Dicionário para guardar ID de quem deve ser excluído
-
-        # BUSCA SALÃO
-        try:
-            rs = supabase.table('agendamentos_salao').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(30).execute()
-            if rs.data:
-                for item in rs.data:
-                    nome_prod = map_prod.get(item.get('produto_salao_id'), 'Salão/Evento')
-                    dt_show = item.get('data_reserva')
-                    cli_show = item.get('cliente_final_waid', 'Cliente')
-                    
-                    label_del = f"[EVT] {dt_show} - {cli_show} ({nome_prod})"
-                    delete_map[label_del] = {'id': item['id'], 'tipo': 'salao'}
-
-                    lista_agenda.append({
-                        'Data': dt_show,
-                        'Cliente': cli_show,
-                        'Item': nome_prod,
-                        'Profissional': '-',
-                        'Valor': item.get('valor_total_registrado', 0),
-                        'Tipo': 'Evento'
-                    })
-        except: pass
-
-        # BUSCA SERVIÇOS
-        try:
-            rv = supabase.table('agendamentos').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(30).execute()
-            if rv.data:
-                for item in rv.data:
-                    nome_serv = map_prod.get(item.get('servico_id'), 'Serviço')
-                    nome_prof = map_prof.get(item.get('profissional_id'), '-')
-                    dt_full = item.get('data_hora_inicio')
-                    
-                    try: dt_obj = pd.to_datetime(dt_full).strftime('%d/%m %H:%M')
-                    except: dt_obj = str(dt_full)
-
-                    cli_show = item.get('cliente_final_nome') or 'Cliente'
-                    label_del = f"[SVC] {dt_obj} - {cli_show} ({nome_serv})"
-                    delete_map[label_del] = {'id': item['id'], 'tipo': 'servico'}
-
-                    lista_agenda.append({
-                        'Data': dt_full,
-                        'Cliente': cli_show,
-                        'Item': nome_serv,
-                        'Profissional': nome_prof,
-                        'Valor': item.get('valor_total_registrado', 0),
-                        'Tipo': 'Serviço'
-                    })
-        except: pass
-
-        # Tabela
-        if lista_agenda:
-            df_final = pd.DataFrame(lista_agenda)
-            try: df_final['Data'] = pd.to_datetime(df_final['Data']).dt.strftime('%d/%m/%Y %H:%M')
-            except: pass
+        if rs.data:
+            d = pd.DataFrame(rs.data)
+            d['Data'] = pd.to_datetime(d['data_reserva']).dt.strftime('%d/%m/%Y')
+            df_final = d[['Data', 'valor_total_registrado', 'cliente_final_waid']]
+            df_final.columns = ['Data', 'Valor (R$)', 'Cliente']
+        elif rv.data:
+            d = pd.DataFrame(rv.data)
+            d['Data/Hora'] = pd.to_datetime(d['data_hora_inicio']).dt.strftime('%d/%m/%Y %H:%M')
+            df_final = d[['Data/Hora', 'valor_total_registrado']]
+            df_final.columns = ['Data/Hora', 'Valor (R$)']
             
-            df_final = df_final[['Data', 'Cliente', 'Item', 'Profissional', 'Valor', 'Tipo']]
-            st.dataframe(df_final, use_container_width=True, hide_index=True)
-        else:
-            st.info("Agenda vazia.")
-
-        st.divider()
-        
-        # Área de Exclusão
-        with st.expander("🗑️ Excluir Agendamento"):
-            if delete_map:
-                sel_to_del = st.selectbox("Selecione para apagar:", list(delete_map.keys()))
-                if st.button("Confirmar Exclusão", key="btn_del_agenda", type="secondary"):
-                    data_del = delete_map[sel_to_del]
-                    try:
-                        tbl = 'agendamentos_salao' if data_del['tipo'] == 'salao' else 'agendamentos'
-                        supabase.table(tbl).delete().eq('id', data_del['id']).execute()
-                        st.success("Agendamento removido!")
-                        time.sleep(1)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro: {e}")
-            else:
-                st.caption("Nada para excluir.")
-
-    # -----------------------------------------------------------
-    # COLUNA DIREITA: NOVO AGENDAMENTO
-    # -----------------------------------------------------------
-    with ca_right:
-        st.markdown("#### ➕ Novo Agendamento")
-        
-        # Tipo de Agendamento
-        tipo_add = st.radio("Tipo:", ["Serviço (Horário)", "Evento (Salão)"], horizontal=True)
-        
-        with st.form("form_add_agenda"):
-            
-            # Campos Comuns
-            nome_cli = st.text_input("Nome do Cliente")
-            
-            # Campos Específicos
-            if tipo_add == "Serviço (Horário)":
-                d_date = st.date_input("Data", value=datetime.now().date())
-                d_time = st.time_input("Hora", value=dt_time(9, 0))
-                
-                # Selectbox Serviços
-                serv_opts = list(map_prod_inv.keys())
-                sel_serv = st.selectbox("Serviço", serv_opts) if serv_opts else None
-                
-                # Selectbox Profissionais
-                prof_opts = list(map_prof_inv.keys())
-                sel_prof = st.selectbox("Profissional", prof_opts) if prof_opts else None
-                
-                val = st.number_input("Valor (R$)", min_value=0.0)
-                
-                if st.form_submit_button("Agendar Serviço", type="primary"):
-                    if not sel_serv: st.error("Cadastre serviços primeiro.")
-                    else:
-                        try:
-                            # Monta Timestamp ISO
-                            dt_iso = datetime.combine(d_date, d_time).isoformat()
-                            
-                            payload = {
-                                "cliente_id": c_id,
-                                "data_hora_inicio": dt_iso,
-                                "cliente_final_nome": nome_cli,
-                                "servico_id": map_prod_inv[sel_serv],
-                                "valor_total_registrado": val,
-                                "status": "Confirmado"
-                            }
-                            if sel_prof: payload["profissional_id"] = map_prof_inv[sel_prof]
-                            
-                            supabase.table('agendamentos').insert(payload).execute()
-                            st.success("Agendado!")
-                            time.sleep(1)
-                            st.rerun()
-                        except Exception as e: st.error(f"Erro: {e}")
-
-            else: # Evento (Salão)
-                d_date = st.date_input("Data do Evento", value=datetime.now().date())
-                
-                # Selectbox Produtos (Pode filtrar, mas mostra tudo por enqto)
-                prod_opts = list(map_prod_inv.keys())
-                sel_prod = st.selectbox("Pacote/Produto", prod_opts) if prod_opts else None
-                
-                val = st.number_input("Valor Total (R$)", min_value=0.0)
-                
-                if st.form_submit_button("Agendar Evento", type="primary"):
-                    if not sel_prod: st.error("Cadastre produtos primeiro.")
-                    else:
-                        try:
-                            payload = {
-                                "cliente_id": c_id,
-                                "data_reserva": str(d_date),
-                                "cliente_final_waid": nome_cli, # Usando campo waid p/ nome provisoriamente
-                                "produto_salao_id": map_prod_inv[sel_prod],
-                                "valor_total_registrado": val,
-                                "status": "Confirmado"
-                            }
-                            supabase.table('agendamentos_salao').insert(payload).execute()
-                            st.success("Evento agendado!")
-                            time.sleep(1)
-                            st.rerun()
-                        except Exception as e: st.error(f"Erro: {e}")
+        if not df_final.empty: st.dataframe(df_final, use_container_width=True, hide_index=True)
+        else: st.info("Agenda vazia.")
+    except Exception as e: st.error(f"Erro agenda: {e}")
 
 # ==============================================================================
-# ABA 4: CÉREBRO
+# TAB 5: CÉREBRO
 # ==============================================================================
-if perfil == 'admin' and len(tabs) > 3:
-    with tabs[3]:
+if perfil == 'admin' and len(tabs) > 4:
+    with tabs[4]:
         st.subheader("Configuração da IA")
         try:
             res = supabase.table('clientes').select('config_fluxo, prompt_full').eq('id', c_id).execute()
@@ -607,20 +473,4 @@ if perfil == 'admin' and len(tabs) > 3:
                         - **Nova:** Fem. Alegre
                         - **Shimmer:** Fem. Chique
                         """)
-                
-                st.markdown("<br>", unsafe_allow_html=True)
-                
-                if st.button("SALVAR CONFIGURAÇÕES", type="primary"):
-                    curr_c['openai_voice'] = nova_voz
-                    curr_c['temperature'] = nova_temp
-                    
-                    supabase.table('clientes').update({
-                        'prompt_full': new_p,
-                        'config_fluxo': json.dumps(curr_c)
-                    }).eq('id', c_id).execute()
-                    
-                    st.success("Configurações salvas com sucesso!")
-                    time.sleep(1)
-                    st.rerun()
-
         except Exception as e: st.error(f"Erro: {e}")
