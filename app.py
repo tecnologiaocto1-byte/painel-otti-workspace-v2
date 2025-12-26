@@ -220,7 +220,7 @@ k3.metric("Atendimentos", c_data['total_atendimentos'])
 k4.metric("Status", "Online" if active else "Offline")
 st.markdown("<br>", unsafe_allow_html=True)
 
-tabs = st.tabs(["Analytics", "Produtos", "Agenda", "Cérebro"])
+tabs = st.tabs(["Analytics", "Espião", "Produtos", "Agenda", "Cérebro"])
 
 # --- CORREÇÃO DO ERRO DE DATA (Analytics) ---
 with tabs[0]:
@@ -408,4 +408,3 @@ if perfil == 'admin' and len(tabs) > 4:
                     st.rerun()
 
         except Exception as e: st.error(f"Erro: {e}")
-
