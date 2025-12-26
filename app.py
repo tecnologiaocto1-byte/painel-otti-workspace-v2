@@ -6,7 +6,6 @@ from supabase import create_client
 import json
 import time
 import os
-import uuid # <--- ADICIONEI ESTA BIBLIOTECA
 from datetime import datetime, timedelta
 
 # ==============================================================================
@@ -303,7 +302,7 @@ with tabs[0]:
     except Exception as e: st.error(f"Erro Visual: {e}")
 
 # ==============================================================================
-# ABA 2: PRODUTOS (CORREÇÃO DE ID NULO)
+# ABA 2: PRODUTOS (CORRIGIDO: SEM ID)
 # ==============================================================================
 with tabs[1]:
     c1, c2 = st.columns([2,1])
@@ -334,12 +333,9 @@ with tabs[1]:
             if st.form_submit_button("Salvar", type="primary"):
                 js = {"preco_padrao": p, "duracao_minutos": 60}
                 try:
-                    # CORREÇÃO CRÍTICA AQUI:
-                    # Se o banco não tem auto-incremento configurado, geramos o UUID manualmente.
-                    new_id = str(uuid.uuid4())
-                    
+                    # CORREÇÃO:
+                    # NÃO ENVIAMOS 'id' POIS O BANCO AGORA É AUTO-INCREMENT
                     supabase.table('produtos').insert({
-                        "id": new_id, # <--- Enviando ID explícito
                         "cliente_id": c_id, 
                         "nome": n, 
                         "categoria": c, 
