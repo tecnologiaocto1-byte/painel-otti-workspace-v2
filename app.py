@@ -37,7 +37,7 @@ def init_connection():
 supabase = init_connection()
 
 # ==============================================================================
-# 3. CSS (CORRIGIDO: SEM CONFLITO NO LOGIN)
+# 3. CSS (CORREÇÃO BOTÃO SAIR)
 # ==============================================================================
 st.markdown(f"""
 <style>
@@ -66,7 +66,7 @@ st.markdown(f"""
     div[data-baseweb="option"] {{ color: #000000 !important; }}
 
     /* --- BOTÕES --- */
-    /* Estilo Global para Botões Primários (Inclui o do Login se usar type='primary') */
+    /* Botão Primário (Azul Octo) */
     button[kind="primary"] {{
         background: linear-gradient(90deg, #3F00FF 0%, #031A89 100%) !important;
         color: #FFFFFF !important; 
@@ -81,7 +81,7 @@ st.markdown(f"""
         transform: translateY(-1px);
     }}
 
-    /* Botão Secundário (Ativar/Pausar) */
+    /* Botão Secundário (Pausar/Ativar) */
     div[data-testid="stAppViewContainer"] .main .stButton > button {{
         background-color: {C_BTN_DARK} !important;
         color: #FFFFFF !important;
@@ -90,7 +90,23 @@ st.markdown(f"""
         box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }}
 
-    /* --- TELA DE LOGIN PERSONALIZADA --- */
+    /* --- BOTÃO SAIR (SIDEBAR) - CORRIGIDO --- */
+    section[data-testid="stSidebar"] button {{
+        background-color: rgba(255, 255, 255, 0.1) !important; /* Fundo levemente branco */
+        border: 1px solid rgba(255, 255, 255, 0.5) !important;
+        color: #FFFFFF !important; /* Texto BRANCO para contrastar com fundo azul escuro da sidebar */
+        transition: all 0.3s ease;
+    }}
+    section[data-testid="stSidebar"] button:hover {{
+        background-color: #FFFFFF !important; /* Fica branco no hover */
+        color: {C_SIDEBAR_NAVY} !important; /* Texto vira azul no hover */
+        border-color: #FFFFFF !important;
+    }}
+    section[data-testid="stSidebar"] button p {{ 
+        color: inherit !important; /* Garante que o texto siga a cor do botão */
+    }}
+
+    /* --- TELA DE LOGIN --- */
     .login-container {{
         max-width: 400px;
         margin: 5vh auto 0 auto;
@@ -112,8 +128,6 @@ st.markdown(f"""
         padding: 30px;
         padding-top: 10px;
     }}
-    
-    /* Ajuste para remover padding extra do form */
     div[data-testid="stForm"] {{ border: none; padding: 0; }}
 
     /* --- MOBILE RESPONSIVENESS --- */
@@ -132,7 +146,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 4. LOGIN (COM FAIXA AZUL & LOGO CENTRALIZADO)
+# 4. LOGIN
 # ==============================================================================
 def get_image_as_base64(path):
     try:
@@ -160,14 +174,13 @@ def render_login_screen():
                 <h4 style="text-align:center; color:#101828; margin-bottom:20px; font-family:Sora;">Acessar Workspace</h4>
         """, unsafe_allow_html=True)
 
-        # FORMULÁRIO DENTRO DO CARD
         with st.form("login_master"):
             email = st.text_input("E-mail")
             senha = st.text_input("Senha", type="password")
             
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # Aqui usamos type="primary" para pegar o CSS correto (azul) sem quebrar o ícone do olho
+            # Usando type="primary" para garantir o estilo correto
             submitted = st.form_submit_button("ENTRAR", type="primary", use_container_width=True)
             
             if submitted:
@@ -209,13 +222,13 @@ with st.sidebar:
     st.markdown("---")
     st.write(f"Olá, **{user.get('nome_usuario', 'User')}**")
     st.markdown("---")
+    # Botão Sair com estilo corrigido pelo CSS acima
     if st.button("SAIR"):
         st.session_state['usuario_logado'] = None
         st.rerun()
 
 if not supabase: st.stop()
 
-# Carrega KPI
 try: df_kpis = pd.DataFrame(supabase.table('view_dashboard_kpis').select("*").execute().data)
 except: df_kpis = pd.DataFrame()
 
@@ -387,7 +400,7 @@ with tabs[1]:
             n = st.text_input("Nome")
             c = st.selectbox("Categoria", ["Serviço", "Produto", "Serviço Salão"])
             p = st.number_input("Preço", min_value=0.0, step=10.0)
-            if st.form_submit_button("Salvar", type="primary"):
+            if st.form_submit_button("Salvar"):
                 js = {"preco_padrao": p, "duracao_minutos": 60}
                 try:
                     supabase.table('produtos').insert({"cliente_id": c_id, "nome": n, "categoria": c, "ativo": True, "regras_preco": js}).execute()
@@ -403,7 +416,7 @@ with tabs[1]:
                 st.success("Removido!"); time.sleep(1); st.rerun()
 
 # ------------------------------------------------------------------------------
-# TAB 3: AGENDA INTELIGENTE (CORRIGIDA - SEM TYPE ERROR)
+# TAB 3: AGENDA INTELIGENTE
 # ------------------------------------------------------------------------------
 with tabs[2]:
     try:
@@ -415,7 +428,6 @@ with tabs[2]:
         if res_prod.data:
             for p in res_prod.data:
                 map_prod[p['id']] = p['nome']
-                # PROTEÇÃO CONTRA NULL AQUI
                 if p.get('categoria'): 
                     cats_disponiveis.add(p['categoria'])
         
@@ -479,7 +491,7 @@ with tabs[2]:
     with ca_right:
         st.markdown("#### ➕ Novo")
         
-        # LÓGICA INTELIGENTE DE EXIBIÇÃO (PROTEGIDA)
+        # LÓGICA INTELIGENTE DE EXIBIÇÃO
         tem_salao = any('Salão' in c for c in cats_disponiveis)
         tem_servico = any('Serviço' in c and 'Salão' not in c for c in cats_disponiveis)
         
@@ -503,6 +515,7 @@ with tabs[2]:
                 if st.form_submit_button("Agendar", type="primary"):
                     try:
                         dt_iso = datetime.combine(d_date, d_time).isoformat()
+                        # CORREÇÃO: Envia para 'cliente_final_waid' que é a coluna certa
                         pl = {
                             "cliente_id": c_id, 
                             "data_hora_inicio": dt_iso, 
