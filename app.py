@@ -37,7 +37,7 @@ def init_connection():
 supabase = init_connection()
 
 # ==============================================================================
-# 3. CSS (DESIGN SYSTEM)
+# 3. CSS (CORRIGIDO E SEGURO)
 # ==============================================================================
 st.markdown(f"""
 <style>
@@ -45,7 +45,7 @@ st.markdown(f"""
 
     .stApp {{ background-color: {C_BG_OCTO_LIGHT}; color: {C_TEXT_DARK}; font-family: 'Inter', sans-serif; }}
     
-    /* SIDEBAR */
+    /* --- SIDEBAR --- */
     section[data-testid="stSidebar"] {{ background-color: {C_SIDEBAR_NAVY}; border-right: 1px solid rgba(255,255,255,0.1); }}
     section[data-testid="stSidebar"] p, section[data-testid="stSidebar"] span, section[data-testid="stSidebar"] label {{ color: #FFFFFF !important; }}
 
@@ -53,50 +53,58 @@ st.markdown(f"""
     h2, h3, h4 {{ font-family: 'Sora', sans-serif; color: {C_TEXT_DARK} !important; font-weight: 700; }}
     p, label {{ color: {C_TEXT_DARK} !important; }}
 
-    /* INPUTS */
-    .stTextInput > div > div > input, .stTextArea > div > div > textarea {{
+    /* --- INPUTS LIMPOS --- */
+    .stTextInput > div > div > input {{
         background-color: #FFFFFF !important;
         color: #000000 !important;
         border: 1px solid #CBD5E1;
         border-radius: 8px;
     }}
+    /* Isso corrige o bug do olho da senha ficando azul */
+    .stTextInput > div > div > button {{
+        background-color: transparent !important;
+        color: #64748B !important;
+        border: none !important;
+    }}
+
     div[data-baseweb="select"] > div {{ background-color: #FFFFFF !important; border-color: #CBD5E1 !important; }}
     div[data-baseweb="select"] span {{ color: #000000 !important; }}
     div[data-baseweb="popover"] {{ background-color: #FFFFFF !important; }}
     div[data-baseweb="option"] {{ color: #000000 !important; }}
 
-    /* --- BOTÕES --- */
-    div[data-testid="stForm"] button {{
-        background: linear-gradient(90deg, #3F00FF 0%, #031A89 100%) !important;
-        color: #FFFFFF !important;
-        border: none !important;
-        padding: 0.6rem 1.2rem;
-        border-radius: 6px;
-        font-weight: 600;
-        width: 100%;
-        margin-top: 10px;
-        transition: all 0.3s ease;
-    }}
-    div[data-testid="stForm"] button:hover {{
-        box-shadow: 0 4px 12px rgba(63, 0, 255, 0.4);
-        transform: translateY(-1px);
-    }}
-    
+    /* --- BOTÕES GERAIS (PRIMARY = AZUL OCTO) --- */
     button[kind="primary"] {{
         background: linear-gradient(90deg, #3F00FF 0%, #031A89 100%) !important;
         color: #FFFFFF !important; 
         border: none !important;
-    }}
-
-    div[data-testid="stAppViewContainer"] .main .stButton > button {{
-        background-color: {C_BTN_DARK} !important;
-        color: #FFFFFF !important;
-        border: none !important;
+        padding: 0.6rem 1.2rem;
+        border-radius: 6px;
         font-weight: 600;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        transition: all 0.2s ease;
+    }}
+    button[kind="primary"]:hover {{
+        box-shadow: 0 4px 12px rgba(63, 0, 255, 0.3);
+        transform: translateY(-1px);
     }}
 
-    /* --- LOGIN CARD --- */
+    /* --- BOTÃO SAIR DA SIDEBAR (CORRIGIDO) --- */
+    /* Especificidade alta para garantir que pegue só na sidebar */
+    section[data-testid="stSidebar"] button[kind="secondary"] {{
+        background-color: transparent !important;
+        border: 1px solid rgba(255,255,255,0.6) !important;
+        color: #FFFFFF !important;
+    }}
+    section[data-testid="stSidebar"] button[kind="secondary"]:hover {{
+        background-color: #FFFFFF !important;
+        color: {C_SIDEBAR_NAVY} !important;
+        border-color: #FFFFFF !important;
+    }}
+    /* Garante que o texto dentro do botão acompanhe a cor */
+    section[data-testid="stSidebar"] button[kind="secondary"] p {{
+        color: inherit !important;
+    }}
+
+    /* --- TELA DE LOGIN --- */
     .login-container {{
         max-width: 400px;
         margin: 8vh auto 0 auto;
@@ -107,7 +115,7 @@ st.markdown(f"""
     }}
     .login-header {{
         background-color: {C_SIDEBAR_NAVY}; 
-        padding: 40px 0;
+        padding: 30px 0;
         text-align: center;
         border-bottom: 4px solid {C_ACCENT_NEON};
         display: flex;
@@ -151,7 +159,7 @@ def render_login_screen():
     with c2:
         logo_b64 = get_image_as_base64("logo.png")
         if logo_b64:
-            img_html = f'<img src="data:image/png;base64,{logo_b64}" width="130" style="filter: brightness(0) invert(1); display: block; margin: 0 auto;">'
+            img_html = f'<img src="data:image/png;base64,{logo_b64}" width="120" style="filter: brightness(0) invert(1); display: block; margin: 0 auto;">'
         else:
             img_html = '<h1 style="color:white !important; margin:0; font-family:Sora;">OCTO</h1>'
 
@@ -168,7 +176,10 @@ def render_login_screen():
             email = st.text_input("E-mail")
             senha = st.text_input("Senha", type="password")
             
-            submitted = st.form_submit_button("ACESSAR SISTEMA")
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            # TYPE="PRIMARY" GARANTE O AZUL DEFINIDO NO CSS
+            submitted = st.form_submit_button("ENTRAR", type="primary", use_container_width=True)
             
             if submitted:
                 if not email or not senha: 
@@ -209,7 +220,8 @@ with st.sidebar:
     st.markdown("---")
     st.write(f"Olá, **{user.get('nome_usuario', 'User')}**")
     st.markdown("---")
-    if st.button("SAIR"):
+    # BOTÃO SAIR (Vai pegar o CSS específico da sidebar)
+    if st.button("SAIR", type="secondary"): 
         st.session_state['usuario_logado'] = None
         st.rerun()
 
@@ -266,7 +278,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 tabs = st.tabs(["📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
 
 # ------------------------------------------------------------------------------
-# TAB 1: ANALYTICS
+# TAB 1: ANALYTICS (OK)
 # ------------------------------------------------------------------------------
 with tabs[0]:
     try:
@@ -357,7 +369,7 @@ with tabs[0]:
     except Exception as e: st.error(f"Erro Visual: {e}")
 
 # ------------------------------------------------------------------------------
-# TAB 2: PRODUTOS
+# TAB 2: PRODUTOS (OK)
 # ------------------------------------------------------------------------------
 with tabs[1]:
     rp = supabase.table('produtos').select('id, nome, categoria, regras_preco').eq('cliente_id', c_id).order('nome').execute()
@@ -386,7 +398,7 @@ with tabs[1]:
             n = st.text_input("Nome")
             c = st.selectbox("Categoria", ["Serviço", "Produto", "Serviço Salão"])
             p = st.number_input("Preço", min_value=0.0, step=10.0)
-            if st.form_submit_button("Salvar"):
+            if st.form_submit_button("Salvar", type="primary"):
                 js = {"preco_padrao": p, "duracao_minutos": 60}
                 try:
                     supabase.table('produtos').insert({"cliente_id": c_id, "nome": n, "categoria": c, "ativo": True, "regras_preco": js}).execute()
@@ -402,11 +414,10 @@ with tabs[1]:
                 st.success("Removido!"); time.sleep(1); st.rerun()
 
 # ------------------------------------------------------------------------------
-# TAB 3: AGENDA INTELIGENTE
+# TAB 3: AGENDA INTELIGENTE (CORRIGIDA)
 # ------------------------------------------------------------------------------
 with tabs[2]:
     try:
-        # Carrega dados para popular selects e decidir o que mostrar
         res_prod = supabase.table('produtos').select('id, nome, categoria').eq('cliente_id', c_id).execute()
         
         map_prod = {}
@@ -414,7 +425,8 @@ with tabs[2]:
         if res_prod.data:
             for p in res_prod.data:
                 map_prod[p['id']] = p['nome']
-                if p.get('categoria'): cats_disponiveis.add(p['categoria'])
+                if p.get('categoria'): # <--- PROTEÇÃO CONTRA NULL AQUI
+                    cats_disponiveis.add(p['categoria'])
         
         map_prod_inv = {v: k for k, v in map_prod.items()}
 
@@ -436,7 +448,10 @@ with tabs[2]:
             rs = supabase.table('agendamentos_salao').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(20).execute()
             for i in (rs.data or []):
                 nm = map_prod.get(i.get('produto_salao_id'), 'Evento')
-                lb = f"[EVT] {i['data_reserva']} - {i.get('cliente_final_waid','?')}"
+                dt = i['data_reserva']
+                cli = i.get('cliente_final_waid') or 'Cliente'
+                
+                lb = f"[EVT] {dt} - {cli}"
                 delete_map[lb] = {'id': i['id'], 't': 'salao'}
                 lista_agenda.append({
                     'Data': i['data_reserva'], 
@@ -452,8 +467,6 @@ with tabs[2]:
             for i in (rv.data or []):
                 nm = map_prod.get(i.get('servico_id'), 'Serviço')
                 dt = i.get('data_hora_inicio')
-                
-                # NOME DO PROFISSIONAL AQUI (CORREÇÃO PEDIDA)
                 nome_prof = map_prof.get(i.get('profissional_id'), '-')
                 
                 try: dt = pd.to_datetime(dt).strftime('%d/%m %H:%M')
@@ -467,7 +480,7 @@ with tabs[2]:
                     'Data': dt, 
                     'Cliente': cli, 
                     'Item': nm, 
-                    'Profissional': nome_prof, # AGORA VAI!
+                    'Profissional': nome_prof, 
                     'Tipo': 'Serviço'
                 })
         except: pass
@@ -493,9 +506,14 @@ with tabs[2]:
         opts = []
         if tem_servico: opts.append("Serviço (Horário)")
         if tem_salao: opts.append("Evento (Salão)")
-        if not opts: opts = ["Serviço (Horário)", "Evento (Salão)"]
         
-        tipo_add = st.radio("Tipo:", opts)
+        # AUTO-SELECT se só tiver uma opção
+        if len(opts) == 1:
+            tipo_add = opts[0]
+        elif len(opts) > 1:
+            tipo_add = st.radio("Tipo:", opts)
+        else:
+            tipo_add = "Serviço (Horário)" # Fallback
         
         with st.form("add_agd"):
             cli = st.text_input("Cliente (Nome/WhatsApp)")
@@ -507,7 +525,7 @@ with tabs[2]:
                 s_prof = st.selectbox("Profissional", list(map_prof_inv.keys())) if map_prof else None
                 val = st.number_input("R$", 0.0)
                 
-                if st.form_submit_button("Agendar"):
+                if st.form_submit_button("Agendar", type="primary"):
                     try:
                         dt_iso = datetime.combine(d_date, d_time).isoformat()
                         pl = {
@@ -526,7 +544,7 @@ with tabs[2]:
             else:
                 s_prod = st.selectbox("Pacote", list(map_prod_inv.keys()))
                 val = st.number_input("R$", 0.0)
-                if st.form_submit_button("Agendar"):
+                if st.form_submit_button("Agendar", type="primary"):
                     try:
                         pl = {
                             "cliente_id": c_id, 
@@ -541,7 +559,7 @@ with tabs[2]:
                     except Exception as e: st.error(f"Erro: {e}")
 
 # ------------------------------------------------------------------------------
-# TAB 4: CÉREBRO
+# TAB 4: CÉREBRO (OK)
 # ------------------------------------------------------------------------------
 if perfil == 'admin' and len(tabs) > 3:
     with tabs[3]:
