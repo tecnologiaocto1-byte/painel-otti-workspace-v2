@@ -1,13 +1,12 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px  # <--- VOLTOU! Isso corrige a aba Analytics
+import plotly.graph_objects as go
 from supabase import create_client
 import json
 import time
 import os
 from datetime import datetime, timedelta, time as dt_time
-
-# ... (MANTENHA TODO O SETUP, CSS E LOGIN IGUAIS AO ANTERIOR) ...
-# Vou colocar aqui o código completo para você copiar e colar sem erro.
 
 # ==============================================================================
 # 1. SETUP
@@ -212,7 +211,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 tabs = st.tabs(["📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
 
 # ==============================================================================
-# ABA 1: ANALYTICS
+# ABA 1: ANALYTICS (COM OS GRÁFICOS DE VOLTA)
 # ==============================================================================
 with tabs[0]:
     try:
@@ -374,7 +373,7 @@ with tabs[1]:
             st.caption("Sem itens para excluir.")
 
 # ==============================================================================
-# ABA 3: AGENDA (VISUALIZAR, ADICIONAR E EXCLUIR)
+# ABA 3: AGENDA (CORRIGIDA: INSERÇÃO SERVIÇOS)
 # ==============================================================================
 with tabs[2]:
     
@@ -382,7 +381,6 @@ with tabs[2]:
     try:
         res_prod = supabase.table('produtos').select('id, nome').eq('cliente_id', c_id).execute()
         map_prod = {p['id']: p['nome'] for p in res_prod.data} if res_prod.data else {}
-        # Lista reversa para o selectbox de adicionar
         map_prod_inv = {v: k for k, v in map_prod.items()}
 
         map_prof = {}
@@ -394,7 +392,6 @@ with tabs[2]:
     except:
         map_prod, map_prod_inv, map_prof, map_prof_inv = {}, {}, {}, {}
 
-    # Layout de Colunas
     ca_left, ca_right = st.columns([2, 1])
 
     # -----------------------------------------------------------
@@ -404,7 +401,7 @@ with tabs[2]:
         st.subheader("📅 Próximos Agendamentos")
         
         lista_agenda = []
-        delete_map = {} # Dicionário para guardar ID de quem deve ser excluído
+        delete_map = {} 
 
         # BUSCA SALÃO
         try:
@@ -440,7 +437,8 @@ with tabs[2]:
                     try: dt_obj = pd.to_datetime(dt_full).strftime('%d/%m %H:%M')
                     except: dt_obj = str(dt_full)
 
-                    cli_show = item.get('cliente_final_nome') or 'Cliente'
+                    # Tenta pegar waid se não tiver nome (já que nome falhou na inserção)
+                    cli_show = item.get('cliente_final_waid') or item.get('cliente_final_nome') or 'Cliente'
                     label_del = f"[SVC] {dt_obj} - {cli_show} ({nome_serv})"
                     delete_map[label_del] = {'id': item['id'], 'tipo': 'servico'}
 
@@ -454,7 +452,6 @@ with tabs[2]:
                     })
         except: pass
 
-        # Tabela
         if lista_agenda:
             df_final = pd.DataFrame(lista_agenda)
             try: df_final['Data'] = pd.to_datetime(df_final['Data']).dt.strftime('%d/%m/%Y %H:%M')
@@ -467,7 +464,6 @@ with tabs[2]:
 
         st.divider()
         
-        # Área de Exclusão
         with st.expander("🗑️ Excluir Agendamento"):
             if delete_map:
                 sel_to_del = st.selectbox("Selecione para apagar:", list(delete_map.keys()))
@@ -490,24 +486,19 @@ with tabs[2]:
     with ca_right:
         st.markdown("#### ➕ Novo Agendamento")
         
-        # Tipo de Agendamento
         tipo_add = st.radio("Tipo:", ["Serviço (Horário)", "Evento (Salão)"], horizontal=True)
         
         with st.form("form_add_agenda"):
             
-            # Campos Comuns
-            nome_cli = st.text_input("Nome do Cliente")
+            nome_cli = st.text_input("Nome/Contato do Cliente")
             
-            # Campos Específicos
             if tipo_add == "Serviço (Horário)":
                 d_date = st.date_input("Data", value=datetime.now().date())
                 d_time = st.time_input("Hora", value=dt_time(9, 0))
                 
-                # Selectbox Serviços
                 serv_opts = list(map_prod_inv.keys())
                 sel_serv = st.selectbox("Serviço", serv_opts) if serv_opts else None
                 
-                # Selectbox Profissionais
                 prof_opts = list(map_prof_inv.keys())
                 sel_prof = st.selectbox("Profissional", prof_opts) if prof_opts else None
                 
@@ -517,13 +508,15 @@ with tabs[2]:
                     if not sel_serv: st.error("Cadastre serviços primeiro.")
                     else:
                         try:
-                            # Monta Timestamp ISO
                             dt_iso = datetime.combine(d_date, d_time).isoformat()
                             
+                            # --- CORREÇÃO AQUI ---
+                            # Enviando nome_cli para 'cliente_final_waid' 
+                            # pois 'cliente_final_nome' não existe no banco.
                             payload = {
                                 "cliente_id": c_id,
                                 "data_hora_inicio": dt_iso,
-                                "cliente_final_nome": nome_cli,
+                                "cliente_final_waid": nome_cli, 
                                 "servico_id": map_prod_inv[sel_serv],
                                 "valor_total_registrado": val,
                                 "status": "Confirmado"
@@ -539,7 +532,6 @@ with tabs[2]:
             else: # Evento (Salão)
                 d_date = st.date_input("Data do Evento", value=datetime.now().date())
                 
-                # Selectbox Produtos (Pode filtrar, mas mostra tudo por enqto)
                 prod_opts = list(map_prod_inv.keys())
                 sel_prod = st.selectbox("Pacote/Produto", prod_opts) if prod_opts else None
                 
@@ -552,7 +544,7 @@ with tabs[2]:
                             payload = {
                                 "cliente_id": c_id,
                                 "data_reserva": str(d_date),
-                                "cliente_final_waid": nome_cli, # Usando campo waid p/ nome provisoriamente
+                                "cliente_final_waid": nome_cli,
                                 "produto_salao_id": map_prod_inv[sel_prod],
                                 "valor_total_registrado": val,
                                 "status": "Confirmado"
