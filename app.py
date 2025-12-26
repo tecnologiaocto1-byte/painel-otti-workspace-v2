@@ -37,7 +37,7 @@ def init_connection():
 supabase = init_connection()
 
 # ==============================================================================
-# 3. CSS (CORRIGIDO: ESCAPING DE CHAVES)
+# 3. CSS (CORRIGIDO: SEM CONFLITO NO LOGIN)
 # ==============================================================================
 st.markdown(f"""
 <style>
@@ -66,30 +66,22 @@ st.markdown(f"""
     div[data-baseweb="option"] {{ color: #000000 !important; }}
 
     /* --- BOTÕES --- */
-    /* Botão Primário (Login/Salvar dentro de Form) */
-    div[data-testid="stForm"] button {{
-        background: linear-gradient(90deg, #3F00FF 0%, #031A89 100%) !important;
-        color: #FFFFFF !important;
-        border: none !important;
-        padding: 0.6rem 1.2rem;
-        border-radius: 6px;
-        font-weight: 600;
-        width: 100%;
-        margin-top: 10px;
-        transition: all 0.3s ease;
-    }}
-    div[data-testid="stForm"] button:hover {{
-        box-shadow: 0 4px 12px rgba(63, 0, 255, 0.4);
-        transform: translateY(-1px);
-    }}
-    
-    /* Botões fora de Form (Ações Gerais) */
+    /* Estilo Global para Botões Primários (Inclui o do Login se usar type='primary') */
     button[kind="primary"] {{
         background: linear-gradient(90deg, #3F00FF 0%, #031A89 100%) !important;
         color: #FFFFFF !important; 
         border: none !important;
+        padding: 0.6rem 1.2rem;
+        border-radius: 6px;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }}
+    button[kind="primary"]:hover {{
+        box-shadow: 0 4px 12px rgba(63, 0, 255, 0.3);
+        transform: translateY(-1px);
     }}
 
+    /* Botão Secundário (Ativar/Pausar) */
     div[data-testid="stAppViewContainer"] .main .stButton > button {{
         background-color: {C_BTN_DARK} !important;
         color: #FFFFFF !important;
@@ -101,7 +93,7 @@ st.markdown(f"""
     /* --- TELA DE LOGIN PERSONALIZADA --- */
     .login-container {{
         max-width: 400px;
-        margin: 8vh auto 0 auto;
+        margin: 5vh auto 0 auto;
         background: white;
         border-radius: 12px;
         box-shadow: 0 10px 40px rgba(0,0,0,0.1);
@@ -109,7 +101,7 @@ st.markdown(f"""
     }}
     .login-header {{
         background-color: {C_SIDEBAR_NAVY}; 
-        padding: 40px 0;
+        padding: 30px 0;
         text-align: center;
         border-bottom: 4px solid {C_ACCENT_NEON};
         display: flex;
@@ -117,11 +109,11 @@ st.markdown(f"""
         align-items: center;
     }}
     .login-body {{
-        padding: 40px;
-        padding-top: 20px;
+        padding: 30px;
+        padding-top: 10px;
     }}
     
-    /* Remove padding do form pra ele colar no card */
+    /* Ajuste para remover padding extra do form */
     div[data-testid="stForm"] {{ border: none; padding: 0; }}
 
     /* --- MOBILE RESPONSIVENESS --- */
@@ -131,17 +123,6 @@ st.markdown(f"""
             width: 95%; 
             margin-left: auto; 
             margin-right: auto;
-        }}
-        .login-header {{
-            padding: 20px 0; 
-        }}
-        .login-body {{
-            padding: 20px; 
-        }}
-        .block-container {{
-            padding-top: 1rem !important;
-            padding-left: 1rem !important;
-            padding-right: 1rem !important;
         }}
     }}
 
@@ -154,7 +135,6 @@ st.markdown(f"""
 # 4. LOGIN (COM FAIXA AZUL & LOGO CENTRALIZADO)
 # ==============================================================================
 def get_image_as_base64(path):
-    """Converte imagem para base64 para embutir no HTML"""
     try:
         with open(path, "rb") as f: data = f.read()
         return base64.b64encode(data).decode()
@@ -165,38 +145,37 @@ if 'usuario_logado' not in st.session_state: st.session_state['usuario_logado'] 
 def render_login_screen():
     c1, c2, c3 = st.columns([1, 1, 1])
     with c2:
-        # Tenta carregar o logo
         logo_b64 = get_image_as_base64("logo.png")
         if logo_b64:
-            # Imagem branca (invert filter) para contrastar com o fundo azul
-            img_html = f'<img src="data:image/png;base64,{logo_b64}" width="140" style="filter: brightness(0) invert(1); display: block; margin: 0 auto;">'
+            img_html = f'<img src="data:image/png;base64,{logo_b64}" width="130" style="filter: brightness(0) invert(1); display: block; margin: 0 auto;">'
         else:
             img_html = '<h1 style="color:white !important; margin:0; font-family:Sora;">OCTO</h1>'
 
-        # Renderiza a estrutura do Card (Faixa Azul + Corpo Branco)
         st.markdown(f"""
         <div class="login-container">
             <div class="login-header">
                 {img_html}
             </div>
             <div class="login-body">
-                <h4 style="text-align:center; color:#101828; margin-bottom:25px; font-family:Sora;">Acessar Workspace</h4>
+                <h4 style="text-align:center; color:#101828; margin-bottom:20px; font-family:Sora;">Acessar Workspace</h4>
         """, unsafe_allow_html=True)
 
-        # Formulário Python INJETADO dentro do corpo branco
+        # FORMULÁRIO DENTRO DO CARD
         with st.form("login_master"):
             email = st.text_input("E-mail")
             senha = st.text_input("Senha", type="password")
             
-            # Botão de Submit (Enter funciona aqui nativamente)
-            submitted = st.form_submit_button("ACESSAR SISTEMA")
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            # Aqui usamos type="primary" para pegar o CSS correto (azul) sem quebrar o ícone do olho
+            submitted = st.form_submit_button("ENTRAR", type="primary", use_container_width=True)
             
             if submitted:
                 if not email or not senha: 
                     st.warning("Preencha todos os campos.")
                 else:
                     if not supabase: 
-                        st.error("Erro de configuração interna.")
+                        st.error("Erro de configuração.")
                     else:
                         try:
                             res = supabase.table('acesso_painel').select('*').eq('email', email).eq('senha', senha).execute()
@@ -204,11 +183,10 @@ def render_login_screen():
                                 st.session_state['usuario_logado'] = res.data[0]
                                 st.rerun()
                             else: 
-                                st.error("Credenciais inválidas.")
+                                st.error("Dados incorretos.")
                         except Exception as e:
-                            st.error(f"Erro ao conectar: {e}")
+                            st.error(f"Erro técnico: {e}")
         
-        # Fecha as Divs do Card
         st.markdown('</div></div>', unsafe_allow_html=True)
 
 if not st.session_state['usuario_logado']:
@@ -216,12 +194,11 @@ if not st.session_state['usuario_logado']:
     st.stop()
 
 # ==============================================================================
-# 5. DASHBOARD (SÓ CARREGA SE LOGADO)
+# 5. DASHBOARD
 # ==============================================================================
 user = st.session_state['usuario_logado']
 perfil = user.get('perfil', 'user')
 
-# --- SIDEBAR ---
 def render_sidebar_logo():
     if os.path.exists("logo.png"): st.image("logo.png", width=120)
     else: st.markdown(f"<h1 style='color:white; margin:0;'>OCTO</h1>", unsafe_allow_html=True)
@@ -242,7 +219,6 @@ if not supabase: st.stop()
 try: df_kpis = pd.DataFrame(supabase.table('view_dashboard_kpis').select("*").execute().data)
 except: df_kpis = pd.DataFrame()
 
-# Lógica de Seleção de Cliente (Admin vs Cliente Final)
 if perfil == 'admin':
     if not df_kpis.empty:
         lista = df_kpis['nome_empresa'].unique()
@@ -265,7 +241,6 @@ else:
 c_id = int(c_data['cliente_id'])
 active = not bool(c_data.get('bot_pausado', False))
 
-# --- CABEÇALHO DO DASHBOARD ---
 c1, c2 = st.columns([3, 1])
 with c1:
     st.title(c_data['nome_empresa'])
@@ -279,7 +254,6 @@ with c2:
 
 st.divider()
 
-# --- CARDS DE MÉTRICAS ---
 tot = c_data.get('total_mensagens', 0)
 sav = round((tot * 1.5) / 60, 1)
 rev = float(c_data.get('receita_total', 0) or 0)
@@ -293,7 +267,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 tabs = st.tabs(["📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
 
 # ------------------------------------------------------------------------------
-# TAB 1: ANALYTICS (COM PLOTLY.EXPRESS FUNCIONANDO)
+# TAB 1: ANALYTICS
 # ------------------------------------------------------------------------------
 with tabs[0]:
     try:
@@ -413,7 +387,7 @@ with tabs[1]:
             n = st.text_input("Nome")
             c = st.selectbox("Categoria", ["Serviço", "Produto", "Serviço Salão"])
             p = st.number_input("Preço", min_value=0.0, step=10.0)
-            if st.form_submit_button("Salvar"):
+            if st.form_submit_button("Salvar", type="primary"):
                 js = {"preco_padrao": p, "duracao_minutos": 60}
                 try:
                     supabase.table('produtos').insert({"cliente_id": c_id, "nome": n, "categoria": c, "ativo": True, "regras_preco": js}).execute()
@@ -429,15 +403,24 @@ with tabs[1]:
                 st.success("Removido!"); time.sleep(1); st.rerun()
 
 # ------------------------------------------------------------------------------
-# TAB 3: AGENDA INTELIGENTE
+# TAB 3: AGENDA INTELIGENTE (CORRIGIDA - SEM TYPE ERROR)
 # ------------------------------------------------------------------------------
 with tabs[2]:
     try:
+        # Carrega dados para popular selects e decidir o que mostrar
         res_prod = supabase.table('produtos').select('id, nome, categoria').eq('cliente_id', c_id).execute()
-        map_prod = {p['id']: p['nome'] for p in res_prod.data} if res_prod.data else {}
-        map_prod_inv = {v: k for k, v in map_prod.items()}
-        cats_disponiveis = {p['categoria'] for p in res_prod.data} if res_prod.data else set()
         
+        map_prod = {}
+        cats_disponiveis = set()
+        if res_prod.data:
+            for p in res_prod.data:
+                map_prod[p['id']] = p['nome']
+                # PROTEÇÃO CONTRA NULL AQUI
+                if p.get('categoria'): 
+                    cats_disponiveis.add(p['categoria'])
+        
+        map_prod_inv = {v: k for k, v in map_prod.items()}
+
         map_prof = {}
         try:
             res_prof = supabase.table('profissionais').select('id, nome').eq('cliente_id', c_id).execute()
@@ -452,15 +435,20 @@ with tabs[2]:
         st.subheader("📅 Próximos Agendamentos")
         lista_agenda, delete_map = [], {}
         
+        # Leitura Agendamentos de Salão (Eventos)
         try:
             rs = supabase.table('agendamentos_salao').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(20).execute()
             for i in (rs.data or []):
                 nm = map_prod.get(i.get('produto_salao_id'), 'Evento')
-                lb = f"[EVT] {i['data_reserva']} - {i.get('cliente_final_waid','?')}"
+                dt = i['data_reserva']
+                cli = i.get('cliente_final_waid') or 'Cliente'
+                
+                lb = f"[EVT] {dt} - {cli}"
                 delete_map[lb] = {'id': i['id'], 't': 'salao'}
-                lista_agenda.append({'Data': i['data_reserva'], 'Cliente': i.get('cliente_final_waid'), 'Item': nm, 'Tipo': 'Evento'})
+                lista_agenda.append({'Data': dt, 'Cliente': cli, 'Item': nm, 'Tipo': 'Evento'})
         except: pass
         
+        # Leitura Agendamentos de Serviço (Horário)
         try:
             rv = supabase.table('agendamentos').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(20).execute()
             for i in (rv.data or []):
@@ -468,7 +456,9 @@ with tabs[2]:
                 dt = i.get('data_hora_inicio')
                 try: dt = pd.to_datetime(dt).strftime('%d/%m %H:%M')
                 except: pass
+                
                 cli = i.get('cliente_final_waid') or i.get('cliente_final_nome') or 'Cliente'
+                
                 lb = f"[SVC] {dt} - {cli}"
                 delete_map[lb] = {'id': i['id'], 't': 'servico'}
                 lista_agenda.append({'Data': dt, 'Cliente': cli, 'Item': nm, 'Tipo': 'Serviço'})
@@ -489,6 +479,7 @@ with tabs[2]:
     with ca_right:
         st.markdown("#### ➕ Novo")
         
+        # LÓGICA INTELIGENTE DE EXIBIÇÃO (PROTEGIDA)
         tem_salao = any('Salão' in c for c in cats_disponiveis)
         tem_servico = any('Serviço' in c and 'Salão' not in c for c in cats_disponiveis)
         
@@ -509,7 +500,7 @@ with tabs[2]:
                 s_prof = st.selectbox("Profissional", list(map_prof_inv.keys())) if map_prof else None
                 val = st.number_input("R$", 0.0)
                 
-                if st.form_submit_button("Agendar"):
+                if st.form_submit_button("Agendar", type="primary"):
                     try:
                         dt_iso = datetime.combine(d_date, d_time).isoformat()
                         pl = {
@@ -528,7 +519,7 @@ with tabs[2]:
             else:
                 s_prod = st.selectbox("Pacote", list(map_prod_inv.keys()))
                 val = st.number_input("R$", 0.0)
-                if st.form_submit_button("Agendar"):
+                if st.form_submit_button("Agendar", type="primary"):
                     try:
                         pl = {
                             "cliente_id": c_id, 
