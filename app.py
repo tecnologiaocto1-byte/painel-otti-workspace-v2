@@ -37,7 +37,7 @@ def init_connection():
 supabase = init_connection()
 
 # ==============================================================================
-# 3. CSS (CORREÇÃO BOTÃO SAIR)
+# 3. CSS (DESIGN SYSTEM)
 # ==============================================================================
 st.markdown(f"""
 <style>
@@ -66,22 +66,28 @@ st.markdown(f"""
     div[data-baseweb="option"] {{ color: #000000 !important; }}
 
     /* --- BOTÕES --- */
-    /* Botão Primário (Azul Octo) */
-    button[kind="primary"] {{
+    div[data-testid="stForm"] button {{
         background: linear-gradient(90deg, #3F00FF 0%, #031A89 100%) !important;
-        color: #FFFFFF !important; 
+        color: #FFFFFF !important;
         border: none !important;
         padding: 0.6rem 1.2rem;
         border-radius: 6px;
         font-weight: 600;
-        transition: all 0.2s ease;
+        width: 100%;
+        margin-top: 10px;
+        transition: all 0.3s ease;
     }}
-    button[kind="primary"]:hover {{
-        box-shadow: 0 4px 12px rgba(63, 0, 255, 0.3);
+    div[data-testid="stForm"] button:hover {{
+        box-shadow: 0 4px 12px rgba(63, 0, 255, 0.4);
         transform: translateY(-1px);
     }}
+    
+    button[kind="primary"] {{
+        background: linear-gradient(90deg, #3F00FF 0%, #031A89 100%) !important;
+        color: #FFFFFF !important; 
+        border: none !important;
+    }}
 
-    /* Botão Secundário (Pausar/Ativar) */
     div[data-testid="stAppViewContainer"] .main .stButton > button {{
         background-color: {C_BTN_DARK} !important;
         color: #FFFFFF !important;
@@ -90,26 +96,10 @@ st.markdown(f"""
         box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }}
 
-    /* --- BOTÃO SAIR (SIDEBAR) - CORRIGIDO --- */
-    section[data-testid="stSidebar"] button {{
-        background-color: rgba(255, 255, 255, 0.1) !important; /* Fundo levemente branco */
-        border: 1px solid rgba(255, 255, 255, 0.5) !important;
-        color: #FFFFFF !important; /* Texto BRANCO para contrastar com fundo azul escuro da sidebar */
-        transition: all 0.3s ease;
-    }}
-    section[data-testid="stSidebar"] button:hover {{
-        background-color: #FFFFFF !important; /* Fica branco no hover */
-        color: {C_SIDEBAR_NAVY} !important; /* Texto vira azul no hover */
-        border-color: #FFFFFF !important;
-    }}
-    section[data-testid="stSidebar"] button p {{ 
-        color: inherit !important; /* Garante que o texto siga a cor do botão */
-    }}
-
-    /* --- TELA DE LOGIN --- */
+    /* --- LOGIN CARD --- */
     .login-container {{
         max-width: 400px;
-        margin: 5vh auto 0 auto;
+        margin: 8vh auto 0 auto;
         background: white;
         border-radius: 12px;
         box-shadow: 0 10px 40px rgba(0,0,0,0.1);
@@ -117,7 +107,7 @@ st.markdown(f"""
     }}
     .login-header {{
         background-color: {C_SIDEBAR_NAVY}; 
-        padding: 30px 0;
+        padding: 40px 0;
         text-align: center;
         border-bottom: 4px solid {C_ACCENT_NEON};
         display: flex;
@@ -125,12 +115,12 @@ st.markdown(f"""
         align-items: center;
     }}
     .login-body {{
-        padding: 30px;
-        padding-top: 10px;
+        padding: 40px;
+        padding-top: 20px;
     }}
     div[data-testid="stForm"] {{ border: none; padding: 0; }}
 
-    /* --- MOBILE RESPONSIVENESS --- */
+    /* --- MOBILE --- */
     @media (max-width: 600px) {{
         .login-container {{
             margin-top: 2vh; 
@@ -178,17 +168,14 @@ def render_login_screen():
             email = st.text_input("E-mail")
             senha = st.text_input("Senha", type="password")
             
-            st.markdown("<br>", unsafe_allow_html=True)
-            
-            # Usando type="primary" para garantir o estilo correto
-            submitted = st.form_submit_button("ENTRAR", type="primary", use_container_width=True)
+            submitted = st.form_submit_button("ACESSAR SISTEMA")
             
             if submitted:
                 if not email or not senha: 
                     st.warning("Preencha todos os campos.")
                 else:
                     if not supabase: 
-                        st.error("Erro de configuração.")
+                        st.error("Erro de configuração interna.")
                     else:
                         try:
                             res = supabase.table('acesso_painel').select('*').eq('email', email).eq('senha', senha).execute()
@@ -222,7 +209,6 @@ with st.sidebar:
     st.markdown("---")
     st.write(f"Olá, **{user.get('nome_usuario', 'User')}**")
     st.markdown("---")
-    # Botão Sair com estilo corrigido pelo CSS acima
     if st.button("SAIR"):
         st.session_state['usuario_logado'] = None
         st.rerun()
@@ -428,8 +414,7 @@ with tabs[2]:
         if res_prod.data:
             for p in res_prod.data:
                 map_prod[p['id']] = p['nome']
-                if p.get('categoria'): 
-                    cats_disponiveis.add(p['categoria'])
+                if p.get('categoria'): cats_disponiveis.add(p['categoria'])
         
         map_prod_inv = {v: k for k, v in map_prod.items()}
 
@@ -447,33 +432,44 @@ with tabs[2]:
         st.subheader("📅 Próximos Agendamentos")
         lista_agenda, delete_map = [], {}
         
-        # Leitura Agendamentos de Salão (Eventos)
         try:
             rs = supabase.table('agendamentos_salao').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(20).execute()
             for i in (rs.data or []):
                 nm = map_prod.get(i.get('produto_salao_id'), 'Evento')
-                dt = i['data_reserva']
-                cli = i.get('cliente_final_waid') or 'Cliente'
-                
-                lb = f"[EVT] {dt} - {cli}"
+                lb = f"[EVT] {i['data_reserva']} - {i.get('cliente_final_waid','?')}"
                 delete_map[lb] = {'id': i['id'], 't': 'salao'}
-                lista_agenda.append({'Data': dt, 'Cliente': cli, 'Item': nm, 'Tipo': 'Evento'})
+                lista_agenda.append({
+                    'Data': i['data_reserva'], 
+                    'Cliente': i.get('cliente_final_waid'), 
+                    'Item': nm, 
+                    'Profissional': '-', 
+                    'Tipo': 'Evento'
+                })
         except: pass
         
-        # Leitura Agendamentos de Serviço (Horário)
         try:
             rv = supabase.table('agendamentos').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(20).execute()
             for i in (rv.data or []):
                 nm = map_prod.get(i.get('servico_id'), 'Serviço')
                 dt = i.get('data_hora_inicio')
+                
+                # NOME DO PROFISSIONAL AQUI (CORREÇÃO PEDIDA)
+                nome_prof = map_prof.get(i.get('profissional_id'), '-')
+                
                 try: dt = pd.to_datetime(dt).strftime('%d/%m %H:%M')
                 except: pass
                 
                 cli = i.get('cliente_final_waid') or i.get('cliente_final_nome') or 'Cliente'
-                
                 lb = f"[SVC] {dt} - {cli}"
                 delete_map[lb] = {'id': i['id'], 't': 'servico'}
-                lista_agenda.append({'Data': dt, 'Cliente': cli, 'Item': nm, 'Tipo': 'Serviço'})
+                
+                lista_agenda.append({
+                    'Data': dt, 
+                    'Cliente': cli, 
+                    'Item': nm, 
+                    'Profissional': nome_prof, # AGORA VAI!
+                    'Tipo': 'Serviço'
+                })
         except: pass
 
         if lista_agenda:
@@ -491,7 +487,6 @@ with tabs[2]:
     with ca_right:
         st.markdown("#### ➕ Novo")
         
-        # LÓGICA INTELIGENTE DE EXIBIÇÃO
         tem_salao = any('Salão' in c for c in cats_disponiveis)
         tem_servico = any('Serviço' in c and 'Salão' not in c for c in cats_disponiveis)
         
@@ -512,10 +507,9 @@ with tabs[2]:
                 s_prof = st.selectbox("Profissional", list(map_prof_inv.keys())) if map_prof else None
                 val = st.number_input("R$", 0.0)
                 
-                if st.form_submit_button("Agendar", type="primary"):
+                if st.form_submit_button("Agendar"):
                     try:
                         dt_iso = datetime.combine(d_date, d_time).isoformat()
-                        # CORREÇÃO: Envia para 'cliente_final_waid' que é a coluna certa
                         pl = {
                             "cliente_id": c_id, 
                             "data_hora_inicio": dt_iso, 
@@ -532,7 +526,7 @@ with tabs[2]:
             else:
                 s_prod = st.selectbox("Pacote", list(map_prod_inv.keys()))
                 val = st.number_input("R$", 0.0)
-                if st.form_submit_button("Agendar", type="primary"):
+                if st.form_submit_button("Agendar"):
                     try:
                         pl = {
                             "cliente_id": c_id, 
