@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px  # <--- VOLTOU! Analytics corrigido.
+import plotly.express as px
 import plotly.graph_objects as go
 from supabase import create_client
 import json
@@ -36,7 +36,7 @@ def init_connection():
 supabase = init_connection()
 
 # ==============================================================================
-# 3. CSS
+# 3. CSS (CORREÇÃO BOTÃO E CORES)
 # ==============================================================================
 st.markdown(f"""
 <style>
@@ -71,9 +71,17 @@ st.markdown(f"""
     div[data-baseweb="popover"] {{ background-color: #FFFFFF !important; }}
     div[data-baseweb="option"] {{ color: #000000 !important; }}
 
+    /* --- BOTÃO SALVAR (PRIMARY) - CORRIGIDO --- */
     button[kind="primary"] {{
         background: linear-gradient(90deg, #3F00FF 0%, #031A89 100%) !important;
-        color: #FFFFFF !important; border: none !important; padding: 0.6rem 1.2rem; border-radius: 6px;
+        color: #FFFFFF !important; /* Texto BRANCO forçado */
+        border: none !important; 
+        padding: 0.6rem 1.2rem; 
+        border-radius: 6px;
+        font-weight: 600;
+    }}
+    button[kind="primary"]:hover {{
+        color: #E2E8F0 !important; /* Garante legibilidade no hover */
     }}
 
     div[data-testid="stAppViewContainer"] .main .stButton > button {{
@@ -211,7 +219,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 tabs = st.tabs(["📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
 
 # ==============================================================================
-# ABA 1: ANALYTICS (CORRIGIDO)
+# ABA 1: ANALYTICS
 # ==============================================================================
 with tabs[0]:
     try:
@@ -373,11 +381,10 @@ with tabs[1]:
             st.caption("Sem itens para excluir.")
 
 # ==============================================================================
-# ABA 3: AGENDA (INTELIGENTE E CORRIGIDA)
+# ABA 3: AGENDA
 # ==============================================================================
 with tabs[2]:
     
-    # 1. Carrega Dados Básicos e ANALISA TIPO DE CLIENTE
     try:
         res_prod = supabase.table('produtos').select('id, nome, categoria').eq('cliente_id', c_id).execute()
         
@@ -402,16 +409,12 @@ with tabs[2]:
 
     ca_left, ca_right = st.columns([2, 1])
 
-    # -----------------------------------------------------------
-    # COLUNA ESQUERDA: LISTAGEM + EXCLUSÃO
-    # -----------------------------------------------------------
     with ca_left:
         st.subheader("📅 Próximos Agendamentos")
         
         lista_agenda = []
         delete_map = {} 
 
-        # BUSCA SALÃO
         try:
             rs = supabase.table('agendamentos_salao').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(30).execute()
             if rs.data:
@@ -433,7 +436,6 @@ with tabs[2]:
                     })
         except: pass
 
-        # BUSCA SERVIÇOS
         try:
             rv = supabase.table('agendamentos').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(30).execute()
             if rv.data:
@@ -445,7 +447,6 @@ with tabs[2]:
                     try: dt_obj = pd.to_datetime(dt_full).strftime('%d/%m %H:%M')
                     except: dt_obj = str(dt_full)
 
-                    # CORREÇÃO DE LEITURA (WAID ou NOME)
                     cli_show = item.get('cliente_final_waid') or item.get('cliente_final_nome') or 'Cliente'
                     label_del = f"[SVC] {dt_obj} - {cli_show} ({nome_serv})"
                     delete_map[label_del] = {'id': item['id'], 'tipo': 'servico'}
@@ -488,15 +489,8 @@ with tabs[2]:
             else:
                 st.caption("Nada para excluir.")
 
-    # -----------------------------------------------------------
-    # COLUNA DIREITA: NOVO AGENDAMENTO (INTELIGENTE)
-    # -----------------------------------------------------------
     with ca_right:
         st.markdown("#### ➕ Novo Agendamento")
-        
-        # LÓGICA INTELIGENTE DE EXIBIÇÃO
-        # Se tem produtos de "Serviço Salão" -> Habilita Evento
-        # Se tem produtos de "Serviço" -> Habilita Horário
         
         tem_salao = any('Salão' in c for c in cats_disponiveis)
         tem_servico = any('Serviço' in c and 'Salão' not in c for c in cats_disponiveis)
@@ -505,7 +499,6 @@ with tabs[2]:
         if tem_servico: opcoes_tipo.append("Serviço (Horário)")
         if tem_salao: opcoes_tipo.append("Evento (Salão)")
         
-        # Fallback (mostra tudo se não detectar)
         if not opcoes_tipo: opcoes_tipo = ["Serviço (Horário)", "Evento (Salão)"]
         
         tipo_add = st.radio("Tipo:", opcoes_tipo, horizontal=True)
@@ -532,11 +525,10 @@ with tabs[2]:
                         try:
                             dt_iso = datetime.combine(d_date, d_time).isoformat()
                             
-                            # --- CORREÇÃO AQUI (Erro nome coluna) ---
                             payload = {
                                 "cliente_id": c_id,
                                 "data_hora_inicio": dt_iso,
-                                "cliente_final_waid": nome_cli, # Agora usa a coluna certa
+                                "cliente_final_waid": nome_cli, # CORRIGIDO
                                 "servico_id": map_prod_inv[sel_serv],
                                 "valor_total_registrado": val,
                                 "status": "Confirmado"
@@ -576,7 +568,7 @@ with tabs[2]:
                         except Exception as e: st.error(f"Erro: {e}")
 
 # ==============================================================================
-# ABA 4: CÉREBRO
+# ABA 4: CÉREBRO (CORREÇÃO JSON + BOTÃO VISÍVEL)
 # ==============================================================================
 if perfil == 'admin' and len(tabs) > 3:
     with tabs[3]:
@@ -622,13 +614,14 @@ if perfil == 'admin' and len(tabs) > 3:
                 
                 st.markdown("<br>", unsafe_allow_html=True)
                 
+                # CORREÇÃO: Enviamos 'curr_c' direto (Dicionário), SEM json.dumps()
                 if st.button("SALVAR CONFIGURAÇÕES", type="primary"):
                     curr_c['openai_voice'] = nova_voz
                     curr_c['temperature'] = nova_temp
                     
                     supabase.table('clientes').update({
                         'prompt_full': new_p,
-                        'config_fluxo': json.dumps(curr_c)
+                        'config_fluxo': curr_c # <--- AQUI ESTAVA O ERRO DO JSON QUEBRADO
                     }).eq('id', c_id).execute()
                     
                     st.success("Configurações salvas com sucesso!")
