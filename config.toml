@@ -1,0 +1,10 @@
+# ⚠️ SUBSTITUA PELOS CÓDIGOS EXATOS DO PDF 'DESENVOLVIMENTO'
+primaryColor = "#FFFF"    # <--- A Cor Principal da Octo (Laranja? Roxo?)
+backgroundColor = "#031A89" # <--- A Cor de Fundo (Provavelmente Branco ou um Cinza muito claro/escuro)
+secondaryBackgroundColor = "#001024" # <--- Cor da Barra Lateral (Um tom diferente do fundo)
+textColor = "#31333F"       # <--- Cor do Texto (Geralmente um cinza chumbo, evite preto puro #000)
+font = "sans serif"         # A fonte 'Inter' ou similar do PDF será carregada automaticamente
+
+[server]
+headless = true
+enableCORS = false
