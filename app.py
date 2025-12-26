@@ -13,10 +13,11 @@ from datetime import datetime, timedelta
 st.set_page_config(page_title="Otti Workspace", layout="wide", page_icon="🐙")
 
 # --- DEFINIÇÃO DE TEMAS ---
+# Inicia no LIGHT por padrão
 if 'theme' not in st.session_state: 
-    st.session_state['theme'] = 'dark'
+    st.session_state['theme'] = 'light'
 
-# Definição de Cores Baseadas no Tema
+# Definição de Cores
 if st.session_state['theme'] == 'dark':
     P = {
         'bg': "#001024",
@@ -25,28 +26,28 @@ if st.session_state['theme'] == 'dark':
         'card': "rgba(3, 26, 137, 0.2)",
         'input_bg': "#0B1221",
         'input_text': "#FFFFFF",
-        'input_border': "#3F00FF", # Borda Neon no Dark
+        'input_border': "#3F00FF",
         'metric_val': "#E7F9A9",
         'btn_bg': "#0B1221",
         'btn_text': "#FFFFFF",
         'chart_template': 'plotly_dark',
-        'sidebar_text': "#FFFFFF" # Texto forçado branco na sidebar escura
+        'sidebar_text': "#FFFFFF"
     }
 else:
-    # LIGHT MODE "CLEAN" (Estilo Antigo/Padrão)
+    # LIGHT MODE
     P = {
         'bg': "#F0F2F5",
-        'sidebar': "#FFFFFF", # Sidebar Branca
+        'sidebar': "#FFFFFF",
         'text': "#101828",
         'card': "#FFFFFF",
         'input_bg': "#FFFFFF",
         'input_text': "#000000",
-        'input_border': "#E0E0E0", # Borda suave no Light
+        'input_border': "#E0E0E0",
         'metric_val': "#3F00FF",
         'btn_bg': "#FFFFFF",
         'btn_text': "#000000",
         'chart_template': 'plotly_white',
-        'sidebar_text': "#101828" # Texto escuro na sidebar clara
+        'sidebar_text': "#101828"
     }
 
 # ==============================================================================
@@ -64,7 +65,7 @@ def init_connection():
 supabase = init_connection()
 
 # ==============================================================================
-# 3. CSS INTELIGENTE (CORRIGIDO)
+# 3. CSS
 # ==============================================================================
 st.markdown(f"""
 <style>
@@ -72,13 +73,11 @@ st.markdown(f"""
 
     .stApp {{ background-color: {P['bg']}; color: {P['text']}; font-family: 'Inter', sans-serif; }}
     
-    /* --- SIDEBAR --- */
     section[data-testid="stSidebar"] {{ 
         background-color: {P['sidebar']}; 
         border-right: 1px solid rgba(0,0,0,0.05); 
     }}
     
-    /* Cor do texto da Sidebar dinâmica */
     section[data-testid="stSidebar"] p, 
     section[data-testid="stSidebar"] span, 
     section[data-testid="stSidebar"] label {{ color: {P['sidebar_text']} !important; }}
@@ -86,8 +85,6 @@ st.markdown(f"""
     h1, h2, h3, h4 {{ font-family: 'Sora', sans-serif; color: {P['text']} !important; font-weight: 700; }}
     p, label {{ color: {P['text']} !important; }}
 
-    /* --- INPUTS & SELECTBOX --- */
-    /* Removemos o !important agressivo das cores para o Light Mode fluir melhor */
     .stTextInput > div > div > input, .stTextArea > div > div > textarea {{
         background-color: {P['input_bg']} !important;
         color: {P['input_text']} !important;
@@ -95,38 +92,32 @@ st.markdown(f"""
         border-radius: 8px;
     }}
     
-    /* Selectbox Container */
     div[data-baseweb="select"] > div {{
         background-color: {P['input_bg']} !important;
         border-color: {P['input_border']} !important;
         color: {P['input_text']} !important;
     }}
     
-    /* Texto do Selectbox e Dropdown */
     div[data-baseweb="select"] span, div[data-baseweb="popover"] {{ 
         color: {P['input_text']} !important; 
     }}
     
-    /* Opções do Menu Dropdown */
     div[data-baseweb="option"] {{
         background-color: {P['input_bg']} !important;
         color: {P['input_text']} !important;
     }}
 
-    /* --- BOTÃO PRIMARY --- */
     button[kind="primary"] {{
         background: linear-gradient(90deg, #3F00FF 0%, #031A89 100%) !important;
         color: #FFFFFF !important; border: none !important; padding: 0.6rem 1.2rem; border-radius: 6px;
     }}
 
-    /* --- BOTÃO SECUNDÁRIO --- */
     div[data-testid="stAppViewContainer"] .main .stButton > button {{
         background-color: {P['btn_bg']} !important;
         color: {P['btn_text']} !important;
         border: 1px solid {P['input_border']} !important;
     }}
 
-    /* Cards/Metrics */
     div[data-testid="stMetric"] {{ 
         background-color: {P['card']}; 
         border: 1px solid {P['input_border']}; 
@@ -146,7 +137,6 @@ st.markdown(f"""
 # 4. LOGIN
 # ==============================================================================
 def render_logo(width=100):
-    # Fallback visual se não tiver imagem
     st.markdown(f"<h1 style='color:#3F00FF; margin:0; font-family:Sora; text-align:center; font-size: 2rem;'>OCTO</h1>", unsafe_allow_html=True)
 
 if 'usuario_logado' not in st.session_state: st.session_state['usuario_logado'] = None
@@ -169,7 +159,6 @@ def render_login_screen():
                     if not supabase: st.error("Erro interno.")
                     else:
                         try:
-                            # Tabela simplificada para o exemplo
                             res = supabase.table('acesso_painel').select('*').eq('email', email).eq('senha', senha).execute()
                             if res.data:
                                 st.session_state['usuario_logado'] = res.data[0]
@@ -212,13 +201,11 @@ with st.sidebar:
 
 if not supabase: st.stop()
 
-# Carregamento de dados
+# LOAD DATA
 try: 
-    # Tenta carregar KPI, se falhar cria DF vazio
     kpis_data = supabase.table('view_dashboard_kpis').select("*").execute().data
     df_kpis = pd.DataFrame(kpis_data) if kpis_data else pd.DataFrame()
-except:
-    df_kpis = pd.DataFrame()
+except: df_kpis = pd.DataFrame()
 
 if df_kpis.empty:
     st.warning("Nenhum dado de KPI encontrado.")
@@ -227,7 +214,6 @@ if df_kpis.empty:
 if perfil == 'admin':
     lista = df_kpis['nome_empresa'].unique()
     if 'last_cli' not in st.session_state: st.session_state['last_cli'] = lista[0]
-    # Proteção caso a lista mude
     if st.session_state['last_cli'] not in lista: st.session_state['last_cli'] = lista[0]
     
     idx = list(lista).index(st.session_state['last_cli'])
@@ -270,7 +256,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 tabs = st.tabs(["Analytics", "Espião", "Produtos", "Agenda", "Cérebro"])
 
 # ==============================================================================
-# TAB 1: ANALYTICS (CORREÇÃO DO DATE_INPUT)
+# TAB 1: ANALYTICS
 # ==============================================================================
 with tabs[0]:
     try:
@@ -290,32 +276,20 @@ with tabs[0]:
             df['dt'] = pd.to_datetime(df['dt'], format='mixed').dt.date
             df = df[df['st'] != 'Cancelado']
             
-            # --- CORREÇÃO DO DATE INPUT ---
-            # O erro acontecia aqui. Vamos calcular min e max seguros.
             min_date = df['dt'].min()
             max_date = df['dt'].max()
             
-            # Se por acaso os dados estiverem vazios ou null, fallback para hoje
             if pd.isnull(min_date): min_date = datetime.now().date()
             if pd.isnull(max_date): max_date = datetime.now().date()
             
-            # O value padrão (hoje) deve estar DENTRO dos limites
             default_val = datetime.now().date()
             if default_val < min_date: default_val = min_date
             if default_val > max_date: default_val = max_date
             
-            # Filtro de Data
             c_f1, c_f2 = st.columns(2)
             with c_f1:
-                # Agora usamos variáveis seguras
-                d_select = st.date_input(
-                    "Filtrar Período", 
-                    value=(min_date, max_date), # Padrão: Todo o período
-                    min_value=min_date, 
-                    max_value=max_date
-                )
+                d_select = st.date_input("Filtrar Período", value=(min_date, max_date), min_value=min_date, max_value=max_date)
             
-            # Aplica filtro se for um range (tupla de 2)
             if isinstance(d_select, tuple) and len(d_select) == 2:
                 start_d, end_d = d_select
                 mask = (df['dt'] >= start_d) & (df['dt'] <= end_d)
@@ -430,7 +404,7 @@ with tabs[3]:
     except Exception as e: st.error(f"Erro agenda: {e}")
 
 # ==============================================================================
-# TAB 5: CÉREBRO
+# TAB 5: CÉREBRO (ATUALIZADO COM BOTÃO SALVAR)
 # ==============================================================================
 if perfil == 'admin' and len(tabs) > 4:
     with tabs[4]:
@@ -440,14 +414,15 @@ if perfil == 'admin' and len(tabs) > 4:
             if res.data:
                 d = res.data[0]
                 curr_c = d.get('config_fluxo') or {}
+                # Garante que é dict
                 if isinstance(curr_c, str): curr_c = json.loads(curr_c)
                 
+                # Tratamento Temp
                 raw_temp = curr_c.get('temperature', 0.5)
                 if isinstance(raw_temp, str):
-                    try:
-                        raw_temp = raw_temp.replace(',', '.')
-                        curr_c['temperature'] = float(raw_temp)
-                    except: curr_c['temperature'] = 0.5
+                    try: raw_temp = float(raw_temp.replace(',', '.'))
+                    except: raw_temp = 0.5
+                curr_c['temperature'] = raw_temp
 
                 c_p1, c_p2 = st.columns([2, 1])
                 with c_p1:
@@ -473,4 +448,23 @@ if perfil == 'admin' and len(tabs) > 4:
                         - **Nova:** Fem. Alegre
                         - **Shimmer:** Fem. Chique
                         """)
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                # --- BOTÃO SALVAR ADICIONADO ---
+                if st.button("SALVAR CONFIGURAÇÕES", type="primary"):
+                    # Atualiza o dict local
+                    curr_c['openai_voice'] = nova_voz
+                    curr_c['temperature'] = nova_temp
+                    
+                    # Salva no banco
+                    supabase.table('clientes').update({
+                        'prompt_full': new_p,
+                        'config_fluxo': json.dumps(curr_c)
+                    }).eq('id', c_id).execute()
+                    
+                    st.success("Cérebro atualizado com sucesso! 🧠")
+                    time.sleep(1)
+                    st.rerun()
+
         except Exception as e: st.error(f"Erro: {e}")
