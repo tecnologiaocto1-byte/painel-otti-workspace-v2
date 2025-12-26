@@ -1,13 +1,13 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 from supabase import create_client
 import json
 import time
 import os
-import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dt_time
+
+# ... (MANTENHA TODO O SETUP, CSS E LOGIN IGUAIS AO ANTERIOR) ...
+# Vou colocar aqui o código completo para você copiar e colar sem erro.
 
 # ==============================================================================
 # 1. SETUP
@@ -374,90 +374,194 @@ with tabs[1]:
             st.caption("Sem itens para excluir.")
 
 # ==============================================================================
-# ABA 3: AGENDA (NOMES DOS SERVIÇOS E PROFISSIONAIS)
+# ABA 3: AGENDA (VISUALIZAR, ADICIONAR E EXCLUIR)
 # ==============================================================================
 with tabs[2]:
-    st.subheader("📅 Próximos Agendamentos")
     
-    # 1. Carrega Dicionários para DE-PARA (ID -> Nome)
+    # 1. Carrega Dados Básicos (Produtos e Profissionais)
     try:
-        # MAPA DE PRODUTOS/SERVIÇOS
         res_prod = supabase.table('produtos').select('id, nome').eq('cliente_id', c_id).execute()
         map_prod = {p['id']: p['nome'] for p in res_prod.data} if res_prod.data else {}
+        # Lista reversa para o selectbox de adicionar
+        map_prod_inv = {v: k for k, v in map_prod.items()}
 
-        # MAPA DE PROFISSIONAIS
         map_prof = {}
         try:
-            # Tenta buscar, se a tabela não existir ou estiver vazia, não quebra o código
             res_prof = supabase.table('profissionais').select('id, nome').eq('cliente_id', c_id).execute()
-            if res_prof.data:
-                map_prof = {p['id']: p['nome'] for p in res_prof.data}
-        except: 
-            pass # Segue a vida se não tiver profissionais
+            if res_prof.data: map_prof = {p['id']: p['nome'] for p in res_prof.data}
+        except: pass
+        map_prof_inv = {v: k for k, v in map_prof.items()}
+    except:
+        map_prod, map_prod_inv, map_prof, map_prof_inv = {}, {}, {}, {}
 
+    # Layout de Colunas
+    ca_left, ca_right = st.columns([2, 1])
+
+    # -----------------------------------------------------------
+    # COLUNA ESQUERDA: LISTAGEM + EXCLUSÃO
+    # -----------------------------------------------------------
+    with ca_left:
+        st.subheader("📅 Próximos Agendamentos")
+        
         lista_agenda = []
+        delete_map = {} # Dicionário para guardar ID de quem deve ser excluído
 
-        # A) AGENDA SALÃO (Tabela agendamentos_salao)
+        # BUSCA SALÃO
         try:
             rs = supabase.table('agendamentos_salao').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(30).execute()
             if rs.data:
                 for item in rs.data:
-                    # Busca nome do produto (Se não achar, usa 'Salão')
                     nome_prod = map_prod.get(item.get('produto_salao_id'), 'Salão/Evento')
+                    dt_show = item.get('data_reserva')
+                    cli_show = item.get('cliente_final_waid', 'Cliente')
                     
+                    label_del = f"[EVT] {dt_show} - {cli_show} ({nome_prod})"
+                    delete_map[label_del] = {'id': item['id'], 'tipo': 'salao'}
+
                     lista_agenda.append({
-                        'Data': item.get('data_reserva'),
-                        'Cliente': item.get('cliente_final_waid', 'Cliente'), # Poderia buscar nome se tivesse tabela de clientes finais
-                        'Serviço/Produto': nome_prod,
-                        'Profissional': '-', # Salão geralmente não tem profissional no agendamento simples
+                        'Data': dt_show,
+                        'Cliente': cli_show,
+                        'Item': nome_prod,
+                        'Profissional': '-',
                         'Valor': item.get('valor_total_registrado', 0),
-                        'Status': item.get('status')
+                        'Tipo': 'Evento'
                     })
         except: pass
 
-        # B) AGENDA SERVIÇOS/SALÃO CABELEIREIRO (Tabela agendamentos)
+        # BUSCA SERVIÇOS
         try:
             rv = supabase.table('agendamentos').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(30).execute()
             if rv.data:
                 for item in rv.data:
-                    # Busca nome do serviço
                     nome_serv = map_prod.get(item.get('servico_id'), 'Serviço')
-                    # Busca nome do profissional
                     nome_prof = map_prof.get(item.get('profissional_id'), '-')
+                    dt_full = item.get('data_hora_inicio')
                     
-                    # Formata data se for timestamp
-                    data_full = item.get('data_hora_inicio')
-                    
+                    try: dt_obj = pd.to_datetime(dt_full).strftime('%d/%m %H:%M')
+                    except: dt_obj = str(dt_full)
+
+                    cli_show = item.get('cliente_final_nome') or 'Cliente'
+                    label_del = f"[SVC] {dt_obj} - {cli_show} ({nome_serv})"
+                    delete_map[label_del] = {'id': item['id'], 'tipo': 'servico'}
+
                     lista_agenda.append({
-                        'Data': data_full,
-                        'Cliente': item.get('cliente_final_nome') or 'Cliente',
-                        'Serviço/Produto': nome_serv,
+                        'Data': dt_full,
+                        'Cliente': cli_show,
+                        'Item': nome_serv,
                         'Profissional': nome_prof,
                         'Valor': item.get('valor_total_registrado', 0),
-                        'Status': item.get('status', 'Confirmado')
+                        'Tipo': 'Serviço'
                     })
         except: pass
 
-        # 3. Monta Tabela Final
+        # Tabela
         if lista_agenda:
             df_final = pd.DataFrame(lista_agenda)
+            try: df_final['Data'] = pd.to_datetime(df_final['Data']).dt.strftime('%d/%m/%Y %H:%M')
+            except: pass
             
-            # Tenta formatar as datas para ficar bonito
-            try:
-                df_final['Data'] = pd.to_datetime(df_final['Data']).dt.strftime('%d/%m/%Y %H:%M')
-            except: pass # Se falhar, deixa como texto original
-
-            # Ordenação final das colunas
-            cols = ['Data', 'Cliente', 'Serviço/Produto', 'Profissional', 'Valor', 'Status']
-            # Filtra colunas que existem no dataframe (segurança)
-            cols = [c for c in cols if c in df_final.columns]
-            
-            st.dataframe(df_final[cols], use_container_width=True, hide_index=True)
+            df_final = df_final[['Data', 'Cliente', 'Item', 'Profissional', 'Valor', 'Tipo']]
+            st.dataframe(df_final, use_container_width=True, hide_index=True)
         else:
-            st.info("Nenhum agendamento encontrado.")
+            st.info("Agenda vazia.")
 
-    except Exception as e:
-        st.error(f"Erro ao carregar agenda: {e}")
+        st.divider()
+        
+        # Área de Exclusão
+        with st.expander("🗑️ Excluir Agendamento"):
+            if delete_map:
+                sel_to_del = st.selectbox("Selecione para apagar:", list(delete_map.keys()))
+                if st.button("Confirmar Exclusão", key="btn_del_agenda", type="secondary"):
+                    data_del = delete_map[sel_to_del]
+                    try:
+                        tbl = 'agendamentos_salao' if data_del['tipo'] == 'salao' else 'agendamentos'
+                        supabase.table(tbl).delete().eq('id', data_del['id']).execute()
+                        st.success("Agendamento removido!")
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro: {e}")
+            else:
+                st.caption("Nada para excluir.")
+
+    # -----------------------------------------------------------
+    # COLUNA DIREITA: NOVO AGENDAMENTO
+    # -----------------------------------------------------------
+    with ca_right:
+        st.markdown("#### ➕ Novo Agendamento")
+        
+        # Tipo de Agendamento
+        tipo_add = st.radio("Tipo:", ["Serviço (Horário)", "Evento (Salão)"], horizontal=True)
+        
+        with st.form("form_add_agenda"):
+            
+            # Campos Comuns
+            nome_cli = st.text_input("Nome do Cliente")
+            
+            # Campos Específicos
+            if tipo_add == "Serviço (Horário)":
+                d_date = st.date_input("Data", value=datetime.now().date())
+                d_time = st.time_input("Hora", value=dt_time(9, 0))
+                
+                # Selectbox Serviços
+                serv_opts = list(map_prod_inv.keys())
+                sel_serv = st.selectbox("Serviço", serv_opts) if serv_opts else None
+                
+                # Selectbox Profissionais
+                prof_opts = list(map_prof_inv.keys())
+                sel_prof = st.selectbox("Profissional", prof_opts) if prof_opts else None
+                
+                val = st.number_input("Valor (R$)", min_value=0.0)
+                
+                if st.form_submit_button("Agendar Serviço", type="primary"):
+                    if not sel_serv: st.error("Cadastre serviços primeiro.")
+                    else:
+                        try:
+                            # Monta Timestamp ISO
+                            dt_iso = datetime.combine(d_date, d_time).isoformat()
+                            
+                            payload = {
+                                "cliente_id": c_id,
+                                "data_hora_inicio": dt_iso,
+                                "cliente_final_nome": nome_cli,
+                                "servico_id": map_prod_inv[sel_serv],
+                                "valor_total_registrado": val,
+                                "status": "Confirmado"
+                            }
+                            if sel_prof: payload["profissional_id"] = map_prof_inv[sel_prof]
+                            
+                            supabase.table('agendamentos').insert(payload).execute()
+                            st.success("Agendado!")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e: st.error(f"Erro: {e}")
+
+            else: # Evento (Salão)
+                d_date = st.date_input("Data do Evento", value=datetime.now().date())
+                
+                # Selectbox Produtos (Pode filtrar, mas mostra tudo por enqto)
+                prod_opts = list(map_prod_inv.keys())
+                sel_prod = st.selectbox("Pacote/Produto", prod_opts) if prod_opts else None
+                
+                val = st.number_input("Valor Total (R$)", min_value=0.0)
+                
+                if st.form_submit_button("Agendar Evento", type="primary"):
+                    if not sel_prod: st.error("Cadastre produtos primeiro.")
+                    else:
+                        try:
+                            payload = {
+                                "cliente_id": c_id,
+                                "data_reserva": str(d_date),
+                                "cliente_final_waid": nome_cli, # Usando campo waid p/ nome provisoriamente
+                                "produto_salao_id": map_prod_inv[sel_prod],
+                                "valor_total_registrado": val,
+                                "status": "Confirmado"
+                            }
+                            supabase.table('agendamentos_salao').insert(payload).execute()
+                            st.success("Evento agendado!")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e: st.error(f"Erro: {e}")
 
 # ==============================================================================
 # ABA 4: CÉREBRO
