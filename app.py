@@ -37,7 +37,7 @@ def init_connection():
 supabase = init_connection()
 
 # ==============================================================================
-# 3. CSS (DESIGN SYSTEM + MOBILE FIX)
+# 3. CSS (CORRIGIDO: ESCAPING DE CHAVES)
 # ==============================================================================
 st.markdown(f"""
 <style>
@@ -66,6 +66,7 @@ st.markdown(f"""
     div[data-baseweb="option"] {{ color: #000000 !important; }}
 
     /* --- BOTÕES --- */
+    /* Botão Primário (Login/Salvar dentro de Form) */
     div[data-testid="stForm"] button {{
         background: linear-gradient(90deg, #3F00FF 0%, #031A89 100%) !important;
         color: #FFFFFF !important;
@@ -82,6 +83,7 @@ st.markdown(f"""
         transform: translateY(-1px);
     }}
     
+    /* Botões fora de Form (Ações Gerais) */
     button[kind="primary"] {{
         background: linear-gradient(90deg, #3F00FF 0%, #031A89 100%) !important;
         color: #FFFFFF !important; 
@@ -96,17 +98,17 @@ st.markdown(f"""
         box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }}
 
-    /* --- TELA DE LOGIN (COM AJUSTE MOBILE) --- */
+    /* --- TELA DE LOGIN PERSONALIZADA --- */
     .login-container {{
         max-width: 400px;
         margin: 8vh auto 0 auto;
         background: white;
         border-radius: 12px;
         box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-        overflow: hidden;
+        overflow: hidden; 
     }}
     .login-header {{
-        background-color: {C_SIDEBAR_NAVY};
+        background-color: {C_SIDEBAR_NAVY}; 
         padding: 40px 0;
         text-align: center;
         border-bottom: 4px solid {C_ACCENT_NEON};
@@ -118,28 +120,30 @@ st.markdown(f"""
         padding: 40px;
         padding-top: 20px;
     }}
+    
+    /* Remove padding do form pra ele colar no card */
     div[data-testid="stForm"] {{ border: none; padding: 0; }}
 
     /* --- MOBILE RESPONSIVENESS --- */
-    @media (max-width: 600px) {
-        .login-container {
-            margin-top: 2vh; /* Menos margem no topo */
-            width: 95%; /* Usa quase toda a largura */
+    @media (max-width: 600px) {{
+        .login-container {{
+            margin-top: 2vh; 
+            width: 95%; 
             margin-left: auto; 
             margin-right: auto;
-        }
-        .login-header {
-            padding: 20px 0; /* Faixa azul menor no mobile */
-        }
-        .login-body {
-            padding: 20px; /* Menos padding interno */
-        }
-        .block-container {
-            padding-top: 1rem !important; /* Aproveita mais a tela */
+        }}
+        .login-header {{
+            padding: 20px 0; 
+        }}
+        .login-body {{
+            padding: 20px; 
+        }}
+        .block-container {{
+            padding-top: 1rem !important;
             padding-left: 1rem !important;
             padding-right: 1rem !important;
-        }
-    }
+        }}
+    }}
 
     #MainMenu, footer, header {{visibility: hidden;}}
     .block-container {{padding-top: 2rem;}}
@@ -147,9 +151,10 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 4. LOGIN
+# 4. LOGIN (COM FAIXA AZUL & LOGO CENTRALIZADO)
 # ==============================================================================
 def get_image_as_base64(path):
+    """Converte imagem para base64 para embutir no HTML"""
     try:
         with open(path, "rb") as f: data = f.read()
         return base64.b64encode(data).decode()
@@ -160,12 +165,15 @@ if 'usuario_logado' not in st.session_state: st.session_state['usuario_logado'] 
 def render_login_screen():
     c1, c2, c3 = st.columns([1, 1, 1])
     with c2:
+        # Tenta carregar o logo
         logo_b64 = get_image_as_base64("logo.png")
         if logo_b64:
+            # Imagem branca (invert filter) para contrastar com o fundo azul
             img_html = f'<img src="data:image/png;base64,{logo_b64}" width="140" style="filter: brightness(0) invert(1); display: block; margin: 0 auto;">'
         else:
             img_html = '<h1 style="color:white !important; margin:0; font-family:Sora;">OCTO</h1>'
 
+        # Renderiza a estrutura do Card (Faixa Azul + Corpo Branco)
         st.markdown(f"""
         <div class="login-container">
             <div class="login-header">
@@ -175,10 +183,12 @@ def render_login_screen():
                 <h4 style="text-align:center; color:#101828; margin-bottom:25px; font-family:Sora;">Acessar Workspace</h4>
         """, unsafe_allow_html=True)
 
+        # Formulário Python INJETADO dentro do corpo branco
         with st.form("login_master"):
             email = st.text_input("E-mail")
             senha = st.text_input("Senha", type="password")
             
+            # Botão de Submit (Enter funciona aqui nativamente)
             submitted = st.form_submit_button("ACESSAR SISTEMA")
             
             if submitted:
@@ -198,6 +208,7 @@ def render_login_screen():
                         except Exception as e:
                             st.error(f"Erro ao conectar: {e}")
         
+        # Fecha as Divs do Card
         st.markdown('</div></div>', unsafe_allow_html=True)
 
 if not st.session_state['usuario_logado']:
@@ -205,11 +216,12 @@ if not st.session_state['usuario_logado']:
     st.stop()
 
 # ==============================================================================
-# 5. DASHBOARD
+# 5. DASHBOARD (SÓ CARREGA SE LOGADO)
 # ==============================================================================
 user = st.session_state['usuario_logado']
 perfil = user.get('perfil', 'user')
 
+# --- SIDEBAR ---
 def render_sidebar_logo():
     if os.path.exists("logo.png"): st.image("logo.png", width=120)
     else: st.markdown(f"<h1 style='color:white; margin:0;'>OCTO</h1>", unsafe_allow_html=True)
@@ -226,9 +238,11 @@ with st.sidebar:
 
 if not supabase: st.stop()
 
+# Carrega KPI
 try: df_kpis = pd.DataFrame(supabase.table('view_dashboard_kpis').select("*").execute().data)
 except: df_kpis = pd.DataFrame()
 
+# Lógica de Seleção de Cliente (Admin vs Cliente Final)
 if perfil == 'admin':
     if not df_kpis.empty:
         lista = df_kpis['nome_empresa'].unique()
@@ -251,6 +265,7 @@ else:
 c_id = int(c_data['cliente_id'])
 active = not bool(c_data.get('bot_pausado', False))
 
+# --- CABEÇALHO DO DASHBOARD ---
 c1, c2 = st.columns([3, 1])
 with c1:
     st.title(c_data['nome_empresa'])
@@ -264,6 +279,7 @@ with c2:
 
 st.divider()
 
+# --- CARDS DE MÉTRICAS ---
 tot = c_data.get('total_mensagens', 0)
 sav = round((tot * 1.5) / 60, 1)
 rev = float(c_data.get('receita_total', 0) or 0)
@@ -277,7 +293,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 tabs = st.tabs(["📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
 
 # ------------------------------------------------------------------------------
-# TAB 1: ANALYTICS
+# TAB 1: ANALYTICS (COM PLOTLY.EXPRESS FUNCIONANDO)
 # ------------------------------------------------------------------------------
 with tabs[0]:
     try:
@@ -452,7 +468,6 @@ with tabs[2]:
                 dt = i.get('data_hora_inicio')
                 try: dt = pd.to_datetime(dt).strftime('%d/%m %H:%M')
                 except: pass
-                
                 cli = i.get('cliente_final_waid') or i.get('cliente_final_nome') or 'Cliente'
                 lb = f"[SVC] {dt} - {cli}"
                 delete_map[lb] = {'id': i['id'], 't': 'servico'}
@@ -551,7 +566,7 @@ if perfil == 'admin' and len(tabs) > 3:
                     nova_temp = st.slider("Temp:", 0.0, 1.0, float(curr_c.get('temperature', 0.5)))
                 
                 st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("SALVAR CONFIGURAÇÕES"):
+                if st.button("SALVAR CONFIGURAÇÕES", type="primary"):
                     curr_c['openai_voice'] = nova_voz
                     curr_c['temperature'] = nova_temp
                     supabase.table('clientes').update({'prompt_full': new_p, 'config_fluxo': curr_c}).eq('id', c_id).execute()
