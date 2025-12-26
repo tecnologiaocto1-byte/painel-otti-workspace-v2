@@ -1,4 +1,18 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
 
+# 1. Configuração da Página deve ser a PRIMEIRA coisa do Streamlit
+st.set_page_config(page_title="Otti Workspace", layout="wide", page_icon="🐙")
+
+# 2. AGORA sim importamos nossos módulos personalizados
+# O python vai buscar esses arquivos na mesma pasta
+from styles import apply_styling
+from services import (
+    supabase, 
+    fetch_kpis, 
+    fetch_financial_history, 
+    toggle_bot_status
 
 apply_styling()
 
@@ -125,4 +139,5 @@ with tab_config:
         if st.button("Salvar Prompt", type="primary"):
             st.toast("Prompt atualizado com sucesso! (Simulação)")
     else:
+
         st.info("Entre em contato com o suporte para alterar a personalidade do seu Otti.")
