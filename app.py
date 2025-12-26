@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px  # <--- VOLTOU! Isso corrige a aba Analytics
+import plotly.express as px  # <--- VOLTOU! Analytics corrigido.
 import plotly.graph_objects as go
 from supabase import create_client
 import json
@@ -211,7 +211,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 tabs = st.tabs(["📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
 
 # ==============================================================================
-# ABA 1: ANALYTICS (COM OS GRÁFICOS DE VOLTA)
+# ABA 1: ANALYTICS (CORRIGIDO)
 # ==============================================================================
 with tabs[0]:
     try:
@@ -373,14 +373,22 @@ with tabs[1]:
             st.caption("Sem itens para excluir.")
 
 # ==============================================================================
-# ABA 3: AGENDA (CORRIGIDA: INSERÇÃO SERVIÇOS)
+# ABA 3: AGENDA (INTELIGENTE E CORRIGIDA)
 # ==============================================================================
 with tabs[2]:
     
-    # 1. Carrega Dados Básicos (Produtos e Profissionais)
+    # 1. Carrega Dados Básicos e ANALISA TIPO DE CLIENTE
     try:
-        res_prod = supabase.table('produtos').select('id, nome').eq('cliente_id', c_id).execute()
-        map_prod = {p['id']: p['nome'] for p in res_prod.data} if res_prod.data else {}
+        res_prod = supabase.table('produtos').select('id, nome, categoria').eq('cliente_id', c_id).execute()
+        
+        map_prod = {}
+        cats_disponiveis = set()
+        
+        if res_prod.data:
+            for p in res_prod.data:
+                map_prod[p['id']] = p['nome']
+                if p.get('categoria'): cats_disponiveis.add(p['categoria'])
+        
         map_prod_inv = {v: k for k, v in map_prod.items()}
 
         map_prof = {}
@@ -390,7 +398,7 @@ with tabs[2]:
         except: pass
         map_prof_inv = {v: k for k, v in map_prof.items()}
     except:
-        map_prod, map_prod_inv, map_prof, map_prof_inv = {}, {}, {}, {}
+        map_prod, map_prod_inv, map_prof, map_prof_inv, cats_disponiveis = {}, {}, {}, {}, set()
 
     ca_left, ca_right = st.columns([2, 1])
 
@@ -437,7 +445,7 @@ with tabs[2]:
                     try: dt_obj = pd.to_datetime(dt_full).strftime('%d/%m %H:%M')
                     except: dt_obj = str(dt_full)
 
-                    # Tenta pegar waid se não tiver nome (já que nome falhou na inserção)
+                    # CORREÇÃO DE LEITURA (WAID ou NOME)
                     cli_show = item.get('cliente_final_waid') or item.get('cliente_final_nome') or 'Cliente'
                     label_del = f"[SVC] {dt_obj} - {cli_show} ({nome_serv})"
                     delete_map[label_del] = {'id': item['id'], 'tipo': 'servico'}
@@ -481,12 +489,26 @@ with tabs[2]:
                 st.caption("Nada para excluir.")
 
     # -----------------------------------------------------------
-    # COLUNA DIREITA: NOVO AGENDAMENTO
+    # COLUNA DIREITA: NOVO AGENDAMENTO (INTELIGENTE)
     # -----------------------------------------------------------
     with ca_right:
         st.markdown("#### ➕ Novo Agendamento")
         
-        tipo_add = st.radio("Tipo:", ["Serviço (Horário)", "Evento (Salão)"], horizontal=True)
+        # LÓGICA INTELIGENTE DE EXIBIÇÃO
+        # Se tem produtos de "Serviço Salão" -> Habilita Evento
+        # Se tem produtos de "Serviço" -> Habilita Horário
+        
+        tem_salao = any('Salão' in c for c in cats_disponiveis)
+        tem_servico = any('Serviço' in c and 'Salão' not in c for c in cats_disponiveis)
+        
+        opcoes_tipo = []
+        if tem_servico: opcoes_tipo.append("Serviço (Horário)")
+        if tem_salao: opcoes_tipo.append("Evento (Salão)")
+        
+        # Fallback (mostra tudo se não detectar)
+        if not opcoes_tipo: opcoes_tipo = ["Serviço (Horário)", "Evento (Salão)"]
+        
+        tipo_add = st.radio("Tipo:", opcoes_tipo, horizontal=True)
         
         with st.form("form_add_agenda"):
             
@@ -510,13 +532,11 @@ with tabs[2]:
                         try:
                             dt_iso = datetime.combine(d_date, d_time).isoformat()
                             
-                            # --- CORREÇÃO AQUI ---
-                            # Enviando nome_cli para 'cliente_final_waid' 
-                            # pois 'cliente_final_nome' não existe no banco.
+                            # --- CORREÇÃO AQUI (Erro nome coluna) ---
                             payload = {
                                 "cliente_id": c_id,
                                 "data_hora_inicio": dt_iso,
-                                "cliente_final_waid": nome_cli, 
+                                "cliente_final_waid": nome_cli, # Agora usa a coluna certa
                                 "servico_id": map_prod_inv[sel_serv],
                                 "valor_total_registrado": val,
                                 "status": "Confirmado"
