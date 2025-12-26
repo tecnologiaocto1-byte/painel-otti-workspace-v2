@@ -6,7 +6,7 @@ from supabase import create_client
 import json
 import time
 import os
-import base64 # <--- NECESSÁRIO PARA O LOGO NO LOGIN
+import base64
 from datetime import datetime, timedelta, time as dt_time
 
 # ==============================================================================
@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, time as dt_time
 # ==============================================================================
 st.set_page_config(page_title="Otti Workspace", layout="wide", page_icon="🐙")
 
-# --- CORES DO NOVO DESIGN (OCTO) ---
+# --- CORES OFICIAIS OCTO ---
 C_BG_OCTO_LIGHT = "#E2E8F0"
 C_SIDEBAR_NAVY  = "#031A89"
 C_ACCENT_NEON   = "#3F00FF"
@@ -37,7 +37,7 @@ def init_connection():
 supabase = init_connection()
 
 # ==============================================================================
-# 3. CSS (LOGIN REFINADO + GERAL)
+# 3. CSS (DESIGN SYSTEM COMPLETO)
 # ==============================================================================
 st.markdown(f"""
 <style>
@@ -45,48 +45,49 @@ st.markdown(f"""
 
     .stApp {{ background-color: {C_BG_OCTO_LIGHT}; color: {C_TEXT_DARK}; font-family: 'Inter', sans-serif; }}
     
-    /* --- SIDEBAR --- */
-    section[data-testid="stSidebar"] {{ 
-        background-color: {C_SIDEBAR_NAVY}; 
-        border-right: 1px solid rgba(255,255,255,0.1); 
-    }}
-    section[data-testid="stSidebar"] p, 
-    section[data-testid="stSidebar"] span, 
-    section[data-testid="stSidebar"] label {{ color: #FFFFFF !important; }}
+    /* SIDEBAR */
+    section[data-testid="stSidebar"] {{ background-color: {C_SIDEBAR_NAVY}; border-right: 1px solid rgba(255,255,255,0.1); }}
+    section[data-testid="stSidebar"] p, section[data-testid="stSidebar"] span, section[data-testid="stSidebar"] label {{ color: #FFFFFF !important; }}
 
     h1 {{ font-family: 'Sora', sans-serif; color: {C_SIDEBAR_NAVY} !important; font-weight: 800; }}
     h2, h3, h4 {{ font-family: 'Sora', sans-serif; color: {C_TEXT_DARK} !important; font-weight: 700; }}
     p, label {{ color: {C_TEXT_DARK} !important; }}
 
-    /* --- INPUTS --- */
+    /* INPUTS */
     .stTextInput > div > div > input, .stTextArea > div > div > textarea {{
         background-color: #FFFFFF !important;
         color: #000000 !important;
         border: 1px solid #CBD5E1;
         border-radius: 8px;
     }}
-    
-    div[data-baseweb="select"] > div {{
-        background-color: #FFFFFF !important;
-        border-color: #CBD5E1 !important;
-    }}
+    div[data-baseweb="select"] > div {{ background-color: #FFFFFF !important; border-color: #CBD5E1 !important; }}
     div[data-baseweb="select"] span {{ color: #000000 !important; }}
     div[data-baseweb="popover"] {{ background-color: #FFFFFF !important; }}
     div[data-baseweb="option"] {{ color: #000000 !important; }}
 
     /* --- BOTÕES --- */
+    /* Botão Primário (Login/Salvar dentro de Form) */
+    div[data-testid="stForm"] button {{
+        background: linear-gradient(90deg, #3F00FF 0%, #031A89 100%) !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        padding: 0.6rem 1.2rem;
+        border-radius: 6px;
+        font-weight: 600;
+        width: 100%;
+        margin-top: 10px;
+        transition: all 0.3s ease;
+    }}
+    div[data-testid="stForm"] button:hover {{
+        box-shadow: 0 4px 12px rgba(63, 0, 255, 0.4);
+        transform: translateY(-1px);
+    }}
+    
+    /* Botões fora de Form (Ações Gerais) */
     button[kind="primary"] {{
         background: linear-gradient(90deg, #3F00FF 0%, #031A89 100%) !important;
         color: #FFFFFF !important; 
-        border: none !important; 
-        padding: 0.6rem 1.2rem; 
-        border-radius: 6px;
-        font-weight: 600;
-        transition: all 0.3s ease;
-    }}
-    button[kind="primary"]:hover {{
-        box-shadow: 0 4px 12px rgba(63, 0, 255, 0.3);
-        transform: translateY(-1px);
+        border: none !important;
     }}
 
     div[data-testid="stAppViewContainer"] .main .stButton > button {{
@@ -96,50 +97,32 @@ st.markdown(f"""
         font-weight: 600;
         box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }}
-    div[data-testid="stAppViewContainer"] .main .stButton > button:hover {{
-        background-color: #3F00FF !important;
-        color: #FFFFFF !important;
-    }}
 
-    section[data-testid="stSidebar"] button {{
-        background-color: transparent !important; border: 1px solid rgba(255,255,255,0.5) !important;
-    }}
-    section[data-testid="stSidebar"] button p {{ color: #FFFFFF !important; }}
-
-    /* --- ESTILO ESPECIAL DO LOGIN --- */
+    /* --- TELA DE LOGIN PERSONALIZADA --- */
     .login-container {{
         max-width: 400px;
-        margin: 5vh auto 0 auto;
+        margin: 8vh auto 0 auto;
         background: white;
-        border-radius: 16px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.08);
-        overflow: hidden;
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        overflow: hidden; /* Garante que a faixa azul respeite o border-radius */
     }}
     .login-header {{
-        background-color: {C_SIDEBAR_NAVY};
+        background-color: {C_SIDEBAR_NAVY}; /* Faixa Azul Octo */
         padding: 40px 0;
         text-align: center;
         border-bottom: 4px solid {C_ACCENT_NEON};
+        display: flex;
+        justify-content: center;
+        align-items: center;
     }}
     .login-body {{
-        padding: 30px;
+        padding: 40px;
+        padding-top: 20px;
     }}
-    /* Esconde borda padrão do form para integrar ao card */
-    div[data-testid="stForm"] {{
-        border: none;
-        padding: 0;
-    }}
-
-    /* Cards KPI */
-    div[data-testid="stMetric"] {{ 
-        background-color: {C_CARD_WHITE}; 
-        border: 1px solid #E2E8F0; 
-        border-radius: 10px; 
-        padding: 15px; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.03); 
-    }}
-    div[data-testid="stMetricValue"] {{ color: {C_ACCENT_NEON} !important; font-family: 'Sora', sans-serif; font-weight: 700; }}
-    label[data-testid="stMetricLabel"] {{ color: #64748B !important; font-weight: 500; }}
+    
+    /* Remove padding do form pra ele colar no card */
+    div[data-testid="stForm"] {{ border: none; padding: 0; }}
 
     #MainMenu, footer, header {{visibility: hidden;}}
     .block-container {{padding-top: 2rem;}}
@@ -147,17 +130,12 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 4. LOGIN (COM LOGO NA FAIXA AZUL)
+# 4. LOGIN (COM FAIXA AZUL & LOGO CENTRALIZADO)
 # ==============================================================================
-def render_logo(width=100):
-    if os.path.exists("logo.png"): st.image("logo.png", width=width)
-    else: st.markdown(f"<h1 style='color:{C_ACCENT_NEON}; margin:0; font-family:Sora; text-align:center;'>OCTO</h1>", unsafe_allow_html=True)
-
-# Função auxiliar para embutir imagem no HTML
 def get_image_as_base64(path):
+    """Converte imagem para base64 para embutir no HTML"""
     try:
-        with open(path, "rb") as f:
-            data = f.read()
+        with open(path, "rb") as f: data = f.read()
         return base64.b64encode(data).decode()
     except: return None
 
@@ -166,45 +144,50 @@ if 'usuario_logado' not in st.session_state: st.session_state['usuario_logado'] 
 def render_login_screen():
     c1, c2, c3 = st.columns([1, 1, 1])
     with c2:
-        # Prepara o Logo
+        # Tenta carregar o logo
         logo_b64 = get_image_as_base64("logo.png")
         if logo_b64:
-            img_html = f'<img src="data:image/png;base64,{logo_b64}" width="140" style="filter: brightness(0) invert(1);">' # Logo branco
+            # Imagem branca (invert filter) para contrastar com o fundo azul
+            img_html = f'<img src="data:image/png;base64,{logo_b64}" width="140" style="filter: brightness(0) invert(1); display: block; margin: 0 auto;">'
         else:
-            img_html = '<h1 style="color:white; font-family:Sora; margin:0;">OCTO</h1>'
+            img_html = '<h1 style="color:white !important; margin:0; font-family:Sora;">OCTO</h1>'
 
-        # Renderiza Cabeçalho Azul
+        # Renderiza a estrutura do Card (Faixa Azul + Corpo Branco)
         st.markdown(f"""
         <div class="login-container">
             <div class="login-header">
                 {img_html}
             </div>
             <div class="login-body">
-                <h3 style="text-align:center; color:{C_TEXT_DARK}; margin-bottom:20px; font-family:Sora;">Otti Workspace</h3>
+                <h4 style="text-align:center; color:#101828; margin-bottom:25px; font-family:Sora;">Acessar Workspace</h4>
         """, unsafe_allow_html=True)
 
-        # Formulário dentro do Card
+        # Formulário Python INJETADO dentro do corpo branco
         with st.form("login_master"):
             email = st.text_input("E-mail")
             senha = st.text_input("Senha", type="password")
             
-            st.markdown("<br>", unsafe_allow_html=True)
-            submitted = st.form_submit_button("ACESSAR SISTEMA", use_container_width=True, type="primary")
+            # Botão de Submit (Enter funciona aqui nativamente)
+            submitted = st.form_submit_button("ACESSAR SISTEMA")
             
             if submitted:
-                if not email or not senha: st.warning("Preencha todos os campos.")
+                if not email or not senha: 
+                    st.warning("Preencha todos os campos.")
                 else:
-                    if not supabase: st.error("Erro interno.")
+                    if not supabase: 
+                        st.error("Erro de configuração interna.")
                     else:
                         try:
                             res = supabase.table('acesso_painel').select('*').eq('email', email).eq('senha', senha).execute()
                             if res.data:
                                 st.session_state['usuario_logado'] = res.data[0]
                                 st.rerun()
-                            else: st.error("Credenciais inválidas.")
-                        except: st.error("Erro de conexão.")
+                            else: 
+                                st.error("Credenciais inválidas.")
+                        except Exception as e:
+                            st.error(f"Erro ao conectar: {e}")
         
-        # Fecha Divs
+        # Fecha as Divs do Card
         st.markdown('</div></div>', unsafe_allow_html=True)
 
 if not st.session_state['usuario_logado']:
@@ -212,43 +195,56 @@ if not st.session_state['usuario_logado']:
     st.stop()
 
 # ==============================================================================
-# 5. DASHBOARD
+# 5. DASHBOARD (SÓ CARREGA SE LOGADO)
 # ==============================================================================
 user = st.session_state['usuario_logado']
-perfil = user['perfil']
+perfil = user.get('perfil', 'user')
+
+# --- SIDEBAR ---
+def render_sidebar_logo():
+    if os.path.exists("logo.png"): st.image("logo.png", width=120)
+    else: st.markdown(f"<h1 style='color:white; margin:0;'>OCTO</h1>", unsafe_allow_html=True)
 
 with st.sidebar:
     st.markdown("<br>", unsafe_allow_html=True)
-    render_logo(width=130)
+    render_sidebar_logo()
     st.markdown("---")
-    st.write(f"Olá, **{user['nome_usuario']}**")
+    st.write(f"Olá, **{user.get('nome_usuario', 'User')}**")
     st.markdown("---")
     if st.button("SAIR"):
         st.session_state['usuario_logado'] = None
         st.rerun()
 
 if not supabase: st.stop()
-try: df_kpis = pd.DataFrame(supabase.table('view_dashboard_kpis').select("*").execute().data)
-except:
-    st.error("Erro ao carregar dados.")
-    st.stop()
 
+# Carrega KPI
+try: df_kpis = pd.DataFrame(supabase.table('view_dashboard_kpis').select("*").execute().data)
+except: df_kpis = pd.DataFrame()
+
+# Lógica de Seleção de Cliente (Admin vs Cliente Final)
 if perfil == 'admin':
-    lista = df_kpis['nome_empresa'].unique()
-    if 'last_cli' not in st.session_state: st.session_state['last_cli'] = lista[0]
-    if st.session_state['last_cli'] not in lista: st.session_state['last_cli'] = lista[0]
-    idx = list(lista).index(st.session_state['last_cli'])
-    sel = st.sidebar.selectbox("Cliente:", lista, index=idx, key="cli_selector")
-    st.session_state['last_cli'] = sel
-    c_data = df_kpis[df_kpis['nome_empresa'] == sel].iloc[0]
+    if not df_kpis.empty:
+        lista = df_kpis['nome_empresa'].unique()
+        if 'last_cli' not in st.session_state: st.session_state['last_cli'] = lista[0]
+        if st.session_state['last_cli'] not in lista: st.session_state['last_cli'] = lista[0]
+        idx = list(lista).index(st.session_state['last_cli'])
+        sel = st.sidebar.selectbox("Cliente:", lista, index=idx, key="cli_selector")
+        st.session_state['last_cli'] = sel
+        c_data = df_kpis[df_kpis['nome_empresa'] == sel].iloc[0]
+    else:
+        st.warning("Sem dados de KPI.")
+        st.stop()
 else:
     filtro = df_kpis[df_kpis['cliente_id'] == user['cliente_id']]
-    if filtro.empty: st.stop()
+    if filtro.empty: 
+        st.error("Cliente não encontrado.")
+        st.stop()
     c_data = filtro.iloc[0]
 
 c_id = int(c_data['cliente_id'])
-active = not bool(c_data['bot_pausado'])
+active = not bool(c_data.get('bot_pausado', False))
 
+# --- CABEÇALHO DO DASHBOARD ---
 c1, c2 = st.columns([3, 1])
 with c1:
     st.title(c_data['nome_empresa'])
@@ -262,21 +258,22 @@ with c2:
 
 st.divider()
 
-tot = c_data['total_mensagens']
+# --- CARDS DE MÉTRICAS ---
+tot = c_data.get('total_mensagens', 0)
 sav = round((tot * 1.5) / 60, 1)
-rev = float(c_data['receita_total'] or 0)
+rev = float(c_data.get('receita_total', 0) or 0)
 k1, k2, k3, k4 = st.columns(4)
 k1.metric("Receita Total", f"R$ {rev:,.2f}")
 k2.metric("Economia Tempo", f"{sav}h")
-k3.metric("Atendimentos", c_data['total_atendimentos'])
+k3.metric("Atendimentos", c_data.get('total_atendimentos', 0))
 k4.metric("Status Atual", "Online 🟢" if active else "Offline 🔴")
 st.markdown("<br>", unsafe_allow_html=True)
 
 tabs = st.tabs(["📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
 
-# ==============================================================================
-# ABA 1: ANALYTICS
-# ==============================================================================
+# ------------------------------------------------------------------------------
+# TAB 1: ANALYTICS (COM PLOTLY.EXPRESS FUNCIONANDO)
+# ------------------------------------------------------------------------------
 with tabs[0]:
     try:
         r_s = supabase.table('agendamentos_salao').select('created_at, valor_sinal_registrado, status, produto_salao_id').eq('cliente_id', c_id).execute().data
@@ -365,12 +362,11 @@ with tabs[0]:
         else: st.info("Sem dados.")
     except Exception as e: st.error(f"Erro Visual: {e}")
 
-# ==============================================================================
-# ABA 2: PRODUTOS
-# ==============================================================================
+# ------------------------------------------------------------------------------
+# TAB 2: PRODUTOS
+# ------------------------------------------------------------------------------
 with tabs[1]:
     rp = supabase.table('produtos').select('id, nome, categoria, regras_preco').eq('cliente_id', c_id).order('nome').execute()
-    
     if rp.data:
         df_prod = pd.DataFrame(rp.data)
         def extrair_preco(x):
@@ -380,73 +376,47 @@ with tabs[1]:
                 return 0
             except: return 0
         df_prod['Preço (R$)'] = df_prod['regras_preco'].apply(extrair_preco)
-    else:
-        df_prod = pd.DataFrame()
+    else: df_prod = pd.DataFrame()
 
     c1, c2 = st.columns([2,1])
-    
     with c1:
         if not df_prod.empty:
             df_display = df_prod[['nome', 'categoria', 'Preço (R$)']]
             df_display.columns = ['Nome', 'Categoria', 'Preço (R$)']
             st.dataframe(df_display, use_container_width=True, hide_index=True)
-        else:
-            st.info("Nenhum produto cadastrado.")
+        else: st.info("Nenhum produto.")
 
     with c2:
         with st.form("add"):
             st.markdown("#### 🆕 Novo Item")
             n = st.text_input("Nome")
-            c = st.selectbox("Categoria", ["Serviço", "Produto", "Serviço Salão"]) # Adicionado Serviço Salão para facilitar
+            c = st.selectbox("Categoria", ["Serviço", "Produto", "Serviço Salão"])
             p = st.number_input("Preço", min_value=0.0, step=10.0)
-            
-            if st.form_submit_button("Salvar", type="primary"):
+            if st.form_submit_button("Salvar"):
                 js = {"preco_padrao": p, "duracao_minutos": 60}
                 try:
-                    supabase.table('produtos').insert({
-                        "cliente_id": c_id, 
-                        "nome": n, 
-                        "categoria": c, 
-                        "ativo": True, 
-                        "regras_preco": js 
-                    }).execute()
-                    
-                    st.success(f"Item '{n}' salvo!")
-                    time.sleep(1)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Erro ao salvar: {e}")
-
+                    supabase.table('produtos').insert({"cliente_id": c_id, "nome": n, "categoria": c, "ativo": True, "regras_preco": js}).execute()
+                    st.success("Salvo!"); time.sleep(1); st.rerun()
+                except Exception as e: st.error(f"Erro: {e}")
+        
         st.divider()
-
-        st.markdown("#### 🗑️ Excluir Item")
         if not df_prod.empty:
             map_del = {row['nome']: row['id'] for i, row in df_prod.iterrows()}
-            sel_del = st.selectbox("Selecione o produto", list(map_del.keys()), key="del_sel")
-            
-            if st.button("Confirmar Exclusão", type="secondary"):
-                try:
-                    id_to_del = map_del[sel_del]
-                    supabase.table('produtos').delete().eq('id', id_to_del).execute()
-                    st.success("Produto removido!")
-                    time.sleep(1)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Erro ao excluir: {e}")
-        else:
-            st.caption("Sem itens para excluir.")
+            sel_del = st.selectbox("🗑️ Excluir Item", list(map_del.keys()))
+            if st.button("Confirmar Exclusão"):
+                supabase.table('produtos').delete().eq('id', map_del[sel_del]).execute()
+                st.success("Removido!"); time.sleep(1); st.rerun()
 
-# ==============================================================================
-# ABA 3: AGENDA
-# ==============================================================================
+# ------------------------------------------------------------------------------
+# TAB 3: AGENDA INTELIGENTE
+# ------------------------------------------------------------------------------
 with tabs[2]:
-    
     try:
+        # Carrega dados para popular selects e decidir o que mostrar
         res_prod = supabase.table('produtos').select('id, nome, categoria').eq('cliente_id', c_id).execute()
         
         map_prod = {}
         cats_disponiveis = set()
-        
         if res_prod.data:
             for p in res_prod.data:
                 map_prod[p['id']] = p['nome']
@@ -460,172 +430,118 @@ with tabs[2]:
             if res_prof.data: map_prof = {p['id']: p['nome'] for p in res_prof.data}
         except: pass
         map_prof_inv = {v: k for k, v in map_prof.items()}
-    except:
-        map_prod, map_prod_inv, map_prof, map_prof_inv, cats_disponiveis = {}, {}, {}, {}, set()
+    except: map_prod, cats_disponiveis = {}, set()
 
     ca_left, ca_right = st.columns([2, 1])
 
     with ca_left:
         st.subheader("📅 Próximos Agendamentos")
+        lista_agenda, delete_map = [], {}
         
-        lista_agenda = []
-        delete_map = {} 
-
+        # Leitura Agendamentos de Salão (Eventos)
         try:
-            rs = supabase.table('agendamentos_salao').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(30).execute()
-            if rs.data:
-                for item in rs.data:
-                    nome_prod = map_prod.get(item.get('produto_salao_id'), 'Salão/Evento')
-                    dt_show = item.get('data_reserva')
-                    cli_show = item.get('cliente_final_waid', 'Cliente')
-                    
-                    label_del = f"[EVT] {dt_show} - {cli_show} ({nome_prod})"
-                    delete_map[label_del] = {'id': item['id'], 'tipo': 'salao'}
-
-                    lista_agenda.append({
-                        'Data': dt_show,
-                        'Cliente': cli_show,
-                        'Item': nome_prod,
-                        'Profissional': '-',
-                        'Valor': item.get('valor_total_registrado', 0),
-                        'Tipo': 'Evento'
-                    })
+            rs = supabase.table('agendamentos_salao').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(20).execute()
+            for i in (rs.data or []):
+                nm = map_prod.get(i.get('produto_salao_id'), 'Evento')
+                dt = i['data_reserva']
+                # Se não tem WAID, tenta pegar um nome genérico
+                cli = i.get('cliente_final_waid') or 'Cliente'
+                
+                lb = f"[EVT] {dt} - {cli}"
+                delete_map[lb] = {'id': i['id'], 't': 'salao'}
+                lista_agenda.append({'Data': dt, 'Cliente': cli, 'Item': nm, 'Tipo': 'Evento'})
         except: pass
-
+        
+        # Leitura Agendamentos de Serviço (Horário)
         try:
-            rv = supabase.table('agendamentos').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(30).execute()
-            if rv.data:
-                for item in rv.data:
-                    nome_serv = map_prod.get(item.get('servico_id'), 'Serviço')
-                    nome_prof = map_prof.get(item.get('profissional_id'), '-')
-                    dt_full = item.get('data_hora_inicio')
-                    
-                    try: dt_obj = pd.to_datetime(dt_full).strftime('%d/%m %H:%M')
-                    except: dt_obj = str(dt_full)
-
-                    cli_show = item.get('cliente_final_waid') or item.get('cliente_final_nome') or 'Cliente'
-                    label_del = f"[SVC] {dt_obj} - {cli_show} ({nome_serv})"
-                    delete_map[label_del] = {'id': item['id'], 'tipo': 'servico'}
-
-                    lista_agenda.append({
-                        'Data': dt_full,
-                        'Cliente': cli_show,
-                        'Item': nome_serv,
-                        'Profissional': nome_prof,
-                        'Valor': item.get('valor_total_registrado', 0),
-                        'Tipo': 'Serviço'
-                    })
+            rv = supabase.table('agendamentos').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(20).execute()
+            for i in (rv.data or []):
+                nm = map_prod.get(i.get('servico_id'), 'Serviço')
+                dt = i.get('data_hora_inicio')
+                try: dt = pd.to_datetime(dt).strftime('%d/%m %H:%M')
+                except: pass
+                
+                # Prioridade: WAID > Nome > 'Cliente'
+                cli = i.get('cliente_final_waid') or i.get('cliente_final_nome') or 'Cliente'
+                
+                lb = f"[SVC] {dt} - {cli}"
+                delete_map[lb] = {'id': i['id'], 't': 'servico'}
+                lista_agenda.append({'Data': dt, 'Cliente': cli, 'Item': nm, 'Tipo': 'Serviço'})
         except: pass
 
         if lista_agenda:
-            df_final = pd.DataFrame(lista_agenda)
-            try: df_final['Data'] = pd.to_datetime(df_final['Data']).dt.strftime('%d/%m/%Y %H:%M')
-            except: pass
-            
-            df_final = df_final[['Data', 'Cliente', 'Item', 'Profissional', 'Valor', 'Tipo']]
-            st.dataframe(df_final, use_container_width=True, hide_index=True)
-        else:
-            st.info("Agenda vazia.")
-
-        st.divider()
+            st.dataframe(pd.DataFrame(lista_agenda), use_container_width=True, hide_index=True)
+        else: st.info("Agenda vazia.")
         
-        with st.expander("🗑️ Excluir Agendamento"):
-            if delete_map:
-                sel_to_del = st.selectbox("Selecione para apagar:", list(delete_map.keys()))
-                if st.button("Confirmar Exclusão", key="btn_del_agenda", type="secondary"):
-                    data_del = delete_map[sel_to_del]
-                    try:
-                        tbl = 'agendamentos_salao' if data_del['tipo'] == 'salao' else 'agendamentos'
-                        supabase.table(tbl).delete().eq('id', data_del['id']).execute()
-                        st.success("Agendamento removido!")
-                        time.sleep(1)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro: {e}")
-            else:
-                st.caption("Nada para excluir.")
+        st.divider()
+        if delete_map:
+            s_del = st.selectbox("🗑️ Apagar:", list(delete_map.keys()))
+            if st.button("Confirmar Apagar"):
+                tb = 'agendamentos_salao' if delete_map[s_del]['t'] == 'salao' else 'agendamentos'
+                supabase.table(tb).delete().eq('id', delete_map[s_del]['id']).execute()
+                st.success("Apagado!"); time.sleep(1); st.rerun()
 
     with ca_right:
-        st.markdown("#### ➕ Novo Agendamento")
+        st.markdown("#### ➕ Novo")
         
+        # LÓGICA INTELIGENTE DE EXIBIÇÃO
         tem_salao = any('Salão' in c for c in cats_disponiveis)
         tem_servico = any('Serviço' in c and 'Salão' not in c for c in cats_disponiveis)
         
-        opcoes_tipo = []
-        if tem_servico: opcoes_tipo.append("Serviço (Horário)")
-        if tem_salao: opcoes_tipo.append("Evento (Salão)")
+        opts = []
+        if tem_servico: opts.append("Serviço (Horário)")
+        if tem_salao: opts.append("Evento (Salão)")
+        if not opts: opts = ["Serviço (Horário)", "Evento (Salão)"]
         
-        if not opcoes_tipo: opcoes_tipo = ["Serviço (Horário)", "Evento (Salão)"]
+        tipo_add = st.radio("Tipo:", opts)
         
-        tipo_add = st.radio("Tipo:", opcoes_tipo, horizontal=True)
-        
-        with st.form("form_add_agenda"):
+        with st.form("add_agd"):
+            cli = st.text_input("Cliente (Nome/WhatsApp)")
+            d_date = st.date_input("Data", value=datetime.now().date())
             
-            nome_cli = st.text_input("Nome/Contato do Cliente")
-            
-            if tipo_add == "Serviço (Horário)":
-                d_date = st.date_input("Data", value=datetime.now().date())
-                d_time = st.time_input("Hora", value=dt_time(9, 0))
+            if "Horário" in tipo_add:
+                d_time = st.time_input("Hora", value=dt_time(9,0))
+                s_serv = st.selectbox("Serviço", list(map_prod_inv.keys()))
+                s_prof = st.selectbox("Profissional", list(map_prof_inv.keys())) if map_prof else None
+                val = st.number_input("R$", 0.0)
                 
-                serv_opts = list(map_prod_inv.keys())
-                sel_serv = st.selectbox("Serviço", serv_opts) if serv_opts else None
-                
-                prof_opts = list(map_prof_inv.keys())
-                sel_prof = st.selectbox("Profissional", prof_opts) if prof_opts else None
-                
-                val = st.number_input("Valor (R$)", min_value=0.0)
-                
-                if st.form_submit_button("Agendar Serviço", type="primary"):
-                    if not sel_serv: st.error("Cadastre serviços primeiro.")
-                    else:
-                        try:
-                            dt_iso = datetime.combine(d_date, d_time).isoformat()
-                            
-                            payload = {
-                                "cliente_id": c_id,
-                                "data_hora_inicio": dt_iso,
-                                "cliente_final_waid": nome_cli, 
-                                "servico_id": map_prod_inv[sel_serv],
-                                "valor_total_registrado": val,
-                                "status": "Confirmado"
-                            }
-                            if sel_prof: payload["profissional_id"] = map_prof_inv[sel_prof]
-                            
-                            supabase.table('agendamentos').insert(payload).execute()
-                            st.success("Agendado!")
-                            time.sleep(1)
-                            st.rerun()
-                        except Exception as e: st.error(f"Erro: {e}")
+                if st.form_submit_button("Agendar"):
+                    try:
+                        dt_iso = datetime.combine(d_date, d_time).isoformat()
+                        # CORREÇÃO: Envia para 'cliente_final_waid' que é a coluna certa
+                        pl = {
+                            "cliente_id": c_id, 
+                            "data_hora_inicio": dt_iso, 
+                            "cliente_final_waid": cli, 
+                            "servico_id": map_prod_inv.get(s_serv), 
+                            "valor_total_registrado": val, 
+                            "status":"Confirmado"
+                        }
+                        if s_prof: pl["profissional_id"] = map_prof_inv[s_prof]
+                        
+                        supabase.table('agendamentos').insert(pl).execute()
+                        st.success("Ok!"); time.sleep(1); st.rerun()
+                    except Exception as e: st.error(f"Erro: {e}")
+            else:
+                s_prod = st.selectbox("Pacote", list(map_prod_inv.keys()))
+                val = st.number_input("R$", 0.0)
+                if st.form_submit_button("Agendar"):
+                    try:
+                        pl = {
+                            "cliente_id": c_id, 
+                            "data_reserva": str(d_date), 
+                            "cliente_final_waid": cli, 
+                            "produto_salao_id": map_prod_inv.get(s_prod), 
+                            "valor_total_registrado": val, 
+                            "status":"Confirmado"
+                        }
+                        supabase.table('agendamentos_salao').insert(pl).execute()
+                        st.success("Ok!"); time.sleep(1); st.rerun()
+                    except Exception as e: st.error(f"Erro: {e}")
 
-            else: # Evento (Salão)
-                d_date = st.date_input("Data do Evento", value=datetime.now().date())
-                
-                prod_opts = list(map_prod_inv.keys())
-                sel_prod = st.selectbox("Pacote/Produto", prod_opts) if prod_opts else None
-                
-                val = st.number_input("Valor Total (R$)", min_value=0.0)
-                
-                if st.form_submit_button("Agendar Evento", type="primary"):
-                    if not sel_prod: st.error("Cadastre produtos primeiro.")
-                    else:
-                        try:
-                            payload = {
-                                "cliente_id": c_id,
-                                "data_reserva": str(d_date),
-                                "cliente_final_waid": nome_cli,
-                                "produto_salao_id": map_prod_inv[sel_prod],
-                                "valor_total_registrado": val,
-                                "status": "Confirmado"
-                            }
-                            supabase.table('agendamentos_salao').insert(payload).execute()
-                            st.success("Evento agendado!")
-                            time.sleep(1)
-                            st.rerun()
-                        except Exception as e: st.error(f"Erro: {e}")
-
-# ==============================================================================
-# ABA 4: CÉREBRO
-# ==============================================================================
+# ------------------------------------------------------------------------------
+# TAB 4: CÉREBRO
+# ------------------------------------------------------------------------------
 if perfil == 'admin' and len(tabs) > 3:
     with tabs[3]:
         st.subheader("Configuração da IA")
@@ -634,53 +550,25 @@ if perfil == 'admin' and len(tabs) > 3:
             if res.data:
                 d = res.data[0]
                 curr_c = d.get('config_fluxo') or {}
+                # Garante que é dict para não quebrar
                 if isinstance(curr_c, str): curr_c = json.loads(curr_c)
                 
-                raw_temp = curr_c.get('temperature', 0.5)
-                if isinstance(raw_temp, str):
-                    try:
-                        raw_temp = raw_temp.replace(',', '.')
-                        curr_c['temperature'] = float(raw_temp)
-                    except: curr_c['temperature'] = 0.5
-
                 c_p1, c_p2 = st.columns([2, 1])
                 with c_p1:
-                    st.markdown("##### 1. Personalidade (Prompt)")
+                    st.markdown("##### Personalidade")
                     new_p = st.text_area("", value=d.get('prompt_full','') or '', height=350)
-
                 with c_p2:
-                    st.markdown("##### 2. Áudio e Voz")
-                    vozes = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
+                    st.markdown("##### Voz e Criatividade")
                     v_atual = curr_c.get('openai_voice', 'alloy')
-                    if v_atual not in vozes: v_atual = 'alloy'
-                    
-                    nova_voz = st.selectbox("Voz da IA:", vozes, index=vozes.index(v_atual))
-                    
-                    temp_atual = float(curr_c.get('temperature', 0.5))
-                    nova_temp = st.slider("Criatividade:", min_value=0.0, max_value=1.0, value=temp_atual, step=0.1)
-                    
-                    with st.expander("🗣️ Guia de Vozes"):
-                        st.markdown("""
-                        - **Alloy:** Neutra
-                        - **Echo:** Masc. Suave
-                        - **Onyx:** Masc. Grave
-                        - **Nova:** Fem. Alegre
-                        - **Shimmer:** Fem. Chique
-                        """)
+                    nova_voz = st.selectbox("Voz:", ["alloy", "echo", "fable", "onyx", "nova", "shimmer"], index=["alloy", "echo", "fable", "onyx", "nova", "shimmer"].index(v_atual) if v_atual in ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] else 0)
+                    nova_temp = st.slider("Temp:", 0.0, 1.0, float(curr_c.get('temperature', 0.5)))
                 
                 st.markdown("<br>", unsafe_allow_html=True)
-                
                 if st.button("SALVAR CONFIGURAÇÕES", type="primary"):
                     curr_c['openai_voice'] = nova_voz
                     curr_c['temperature'] = nova_temp
                     
-                    supabase.table('clientes').update({
-                        'prompt_full': new_p,
-                        'config_fluxo': curr_c
-                    }).eq('id', c_id).execute()
-                    
-                    st.success("Configurações salvas com sucesso!")
-                    time.sleep(1)
-                    st.rerun()
-
+                    # GRAVAÇÃO SEGURA DO JSON (Passa o dict direto)
+                    supabase.table('clientes').update({'prompt_full': new_p, 'config_fluxo': curr_c}).eq('id', c_id).execute()
+                    st.success("Salvo!"); time.sleep(1); st.rerun()
         except Exception as e: st.error(f"Erro: {e}")
