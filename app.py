@@ -6,6 +6,7 @@ from supabase import create_client
 import json
 import time
 import os
+import random
 from datetime import datetime, timedelta
 
 # ==============================================================================
@@ -302,13 +303,11 @@ with tabs[0]:
     except Exception as e: st.error(f"Erro Visual: {e}")
 
 # ==============================================================================
-# ABA 2: PRODUTOS (COM EXCLUIR)
+# ABA 2: PRODUTOS
 # ==============================================================================
 with tabs[1]:
-    # Faz o Select incluindo o ID para podermos excluir
     rp = supabase.table('produtos').select('id, nome, categoria, regras_preco').eq('cliente_id', c_id).order('nome').execute()
     
-    # Prepara o Dataframe
     if rp.data:
         df_prod = pd.DataFrame(rp.data)
         def extrair_preco(x):
@@ -323,7 +322,6 @@ with tabs[1]:
 
     c1, c2 = st.columns([2,1])
     
-    # --- COLUNA DA TABELA ---
     with c1:
         if not df_prod.empty:
             df_display = df_prod[['nome', 'categoria', 'Preço (R$)']]
@@ -332,9 +330,7 @@ with tabs[1]:
         else:
             st.info("Nenhum produto cadastrado.")
 
-    # --- COLUNA DE AÇÕES ---
     with c2:
-        # FORMULÁRIO DE ADIÇÃO
         with st.form("add"):
             st.markdown("#### 🆕 Novo Item")
             n = st.text_input("Nome")
@@ -358,18 +354,13 @@ with tabs[1]:
                 except Exception as e:
                     st.error(f"Erro ao salvar: {e}")
 
-        # DIVISOR
         st.divider()
 
-        # ÁREA DE EXCLUSÃO (NOVA)
         st.markdown("#### 🗑️ Excluir Item")
         if not df_prod.empty:
-            # Cria dicionário {Nome: ID} para o selectbox
             map_del = {row['nome']: row['id'] for i, row in df_prod.iterrows()}
-            
             sel_del = st.selectbox("Selecione o produto", list(map_del.keys()), key="del_sel")
             
-            # Botão de exclusão
             if st.button("Confirmar Exclusão", type="secondary"):
                 try:
                     id_to_del = map_del[sel_del]
@@ -383,27 +374,78 @@ with tabs[1]:
             st.caption("Sem itens para excluir.")
 
 # ==============================================================================
-# ABA 3: AGENDA
+# ABA 3: AGENDA (TURBINADA 🚀)
 # ==============================================================================
 with tabs[2]:
-    st.subheader("Próximos Agendamentos")
+    st.subheader("📅 Próximos Agendamentos")
+    
+    # 1. Busca Tabelas Auxiliares (Profissionais e Produtos) para Mapeamento
     try:
-        df_final = pd.DataFrame()
-        rs = supabase.table('agendamentos_salao').select('data_reserva, valor_total_registrado, cliente_final_waid').eq('cliente_id', c_id).order('created_at', desc=True).limit(50).execute()
-        rv = supabase.table('agendamentos').select('data_hora_inicio, valor_total_registrado').eq('cliente_id', c_id).order('created_at', desc=True).limit(50).execute()
+        # Busca Produtos/Serviços
+        res_prod = supabase.table('produtos').select('id, nome').eq('cliente_id', c_id).execute()
+        map_prod = {p['id']: p['nome'] for p in res_prod.data} if res_prod.data else {}
+
+        # Busca Profissionais (Tenta buscar, se não existir tabela, ignora)
+        map_prof = {}
+        try:
+            res_prof = supabase.table('profissionais').select('id, nome').eq('cliente_id', c_id).execute()
+            if res_prof.data:
+                map_prof = {p['id']: p['nome'] for p in res_prof.data}
+        except: pass # Se der erro (tabela não existe), segue vazio
+
+        # 2. Busca Agendamentos
+        lista_agenda = []
+
+        # A) SALÃO (Produtos)
+        rs = supabase.table('agendamentos_salao').select('data_reserva, valor_total_registrado, cliente_final_waid, produto_salao_id').eq('cliente_id', c_id).order('created_at', desc=True).limit(30).execute()
         if rs.data:
-            d = pd.DataFrame(rs.data)
-            d['Data'] = pd.to_datetime(d['data_reserva']).dt.strftime('%d/%m/%Y')
-            df_final = d[['Data', 'valor_total_registrado', 'cliente_final_waid']]
-            df_final.columns = ['Data', 'Valor (R$)', 'Cliente']
-        elif rv.data:
-            d = pd.DataFrame(rv.data)
-            d['Data/Hora'] = pd.to_datetime(d['data_hora_inicio']).dt.strftime('%d/%m/%Y %H:%M')
-            df_final = d[['Data/Hora', 'valor_total_registrado']]
-            df_final.columns = ['Data/Hora', 'Valor (R$)']
-        if not df_final.empty: st.dataframe(df_final, use_container_width=True, hide_index=True)
-        else: st.info("Agenda vazia.")
-    except Exception as e: st.error(f"Erro agenda: {e}")
+            for item in rs.data:
+                nome_prod = map_prod.get(item.get('produto_salao_id'), 'Salão/Produto')
+                lista_agenda.append({
+                    'Data': item['data_reserva'],
+                    'Cliente': item.get('cliente_final_waid', 'Cliente'),
+                    'Item': nome_prod,
+                    'Profissional': '-', # Produtos de salão geralmente não tem profissional específico no agendamento simples
+                    'Valor': item.get('valor_total_registrado', 0),
+                    'Tipo': 'Salão'
+                })
+
+        # B) SERVIÇOS
+        # Tentamos buscar colunas extras (cliente_final_nome, profissional_id) se existirem
+        rv = supabase.table('agendamentos').select('data_hora_inicio, valor_total_registrado, servico_id, profissional_id, cliente_final_nome').eq('cliente_id', c_id).order('created_at', desc=True).limit(30).execute()
+        
+        if rv.data:
+            for item in rv.data:
+                nome_serv = map_prod.get(item.get('servico_id'), 'Serviço')
+                nome_prof = map_prof.get(item.get('profissional_id'), 'Profissional') if item.get('profissional_id') else 'Profissional'
+                nome_cli = item.get('cliente_final_nome') or 'Cliente'
+                
+                lista_agenda.append({
+                    'Data': item['data_hora_inicio'],
+                    'Cliente': nome_cli,
+                    'Item': nome_serv,
+                    'Profissional': nome_prof,
+                    'Valor': item.get('valor_total_registrado', 0),
+                    'Tipo': 'Serviço'
+                })
+
+        # 3. Monta e Exibe Tabela Final
+        if lista_agenda:
+            df_final = pd.DataFrame(lista_agenda)
+            
+            # Formatação de Data
+            df_final['Data'] = pd.to_datetime(df_final['Data']).dt.strftime('%d/%m/%Y %H:%M')
+            
+            # Reordena colunas para ficar bonito
+            df_final = df_final[['Data', 'Cliente', 'Item', 'Profissional', 'Valor']]
+            df_final.columns = ['Data/Hora', 'Cliente', 'Serviço/Produto', 'Profissional', 'Valor (R$)']
+            
+            st.dataframe(df_final, use_container_width=True, hide_index=True)
+        else:
+            st.info("Nenhum agendamento encontrado.")
+
+    except Exception as e:
+        st.error(f"Erro ao carregar agenda: {e}")
 
 # ==============================================================================
 # ABA 4: CÉREBRO
