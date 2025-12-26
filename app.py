@@ -13,14 +13,13 @@ from datetime import datetime, timedelta
 # ==============================================================================
 st.set_page_config(page_title="Otti Workspace", layout="wide", page_icon="🐙")
 
-# --- CORES DO NOVO DESIGN ---
-# Paleta baseada na OCTO
-C_BG_OCTO_LIGHT = "#E2E8F0" # Azul Gelo (Fundo geral, não é mais branco puro)
-C_SIDEBAR_NAVY  = "#031A89" # Azul Oficial Octo
-C_ACCENT_NEON   = "#3F00FF" # Roxo/Azul Neon
+# --- CORES DO NOVO DESIGN (OCTO) ---
+C_BG_OCTO_LIGHT = "#E2E8F0"
+C_SIDEBAR_NAVY  = "#031A89"
+C_ACCENT_NEON   = "#3F00FF"
 C_TEXT_DARK     = "#101828"
 C_CARD_WHITE    = "#FFFFFF"
-C_BTN_DARK      = "#031A89" # Botão escuro solicitado
+C_BTN_DARK      = "#031A89"
 
 # ==============================================================================
 # 2. CONEXÃO
@@ -37,13 +36,12 @@ def init_connection():
 supabase = init_connection()
 
 # ==============================================================================
-# 3. CSS (DESIGN REFINADO)
+# 3. CSS
 # ==============================================================================
 st.markdown(f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;800&family=Inter:wght@300;400;600&display=swap');
 
-    /* Fundo Geral - Azul Gelo suave */
     .stApp {{ background-color: {C_BG_OCTO_LIGHT}; color: {C_TEXT_DARK}; font-family: 'Inter', sans-serif; }}
     
     /* --- SIDEBAR --- */
@@ -55,8 +53,7 @@ st.markdown(f"""
     section[data-testid="stSidebar"] span, 
     section[data-testid="stSidebar"] label {{ color: #FFFFFF !important; }}
 
-    /* --- TÍTULOS (H1) --- */
-    /* Agora o nome do cliente fica no Azul Octo */
+    /* --- TÍTULOS --- */
     h1 {{ font-family: 'Sora', sans-serif; color: {C_SIDEBAR_NAVY} !important; font-weight: 800; }}
     h2, h3, h4 {{ font-family: 'Sora', sans-serif; color: {C_TEXT_DARK} !important; font-weight: 700; }}
     p, label {{ color: {C_TEXT_DARK} !important; }}
@@ -65,28 +62,24 @@ st.markdown(f"""
     .stTextInput > div > div > input, .stTextArea > div > div > textarea {{
         background-color: #FFFFFF !important;
         color: #000000 !important;
-        border: 1px solid #CBD5E1; /* Borda cinza suave */
+        border: 1px solid #CBD5E1;
         border-radius: 8px;
     }}
     
-    /* Selectbox */
     div[data-baseweb="select"] > div {{
         background-color: #FFFFFF !important;
         border-color: #CBD5E1 !important;
     }}
     div[data-baseweb="select"] span {{ color: #000000 !important; }}
-    
     div[data-baseweb="popover"] {{ background-color: #FFFFFF !important; }}
     div[data-baseweb="option"] {{ color: #000000 !important; }}
 
-    /* --- BOTÃO PRIMARY (Ações Principais) --- */
+    /* --- BOTÕES --- */
     button[kind="primary"] {{
         background: linear-gradient(90deg, #3F00FF 0%, #031A89 100%) !important;
         color: #FFFFFF !important; border: none !important; padding: 0.6rem 1.2rem; border-radius: 6px;
     }}
 
-    /* --- BOTÃO SECUNDÁRIO (PAUSAR/ATIVAR) - DARK --- */
-    /* Solicitado: Botão escuro */
     div[data-testid="stAppViewContainer"] .main .stButton > button {{
         background-color: {C_BTN_DARK} !important;
         color: #FFFFFF !important;
@@ -95,17 +88,16 @@ st.markdown(f"""
         box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }}
     div[data-testid="stAppViewContainer"] .main .stButton > button:hover {{
-        background-color: #3F00FF !important; /* Brilha neon no hover */
+        background-color: #3F00FF !important;
         color: #FFFFFF !important;
     }}
 
-    /* --- BOTÃO SIDEBAR (SAIR) --- */
     section[data-testid="stSidebar"] button {{
         background-color: transparent !important; border: 1px solid rgba(255,255,255,0.5) !important;
     }}
     section[data-testid="stSidebar"] button p {{ color: #FFFFFF !important; }}
 
-    /* Cards/KPIs */
+    /* Cards */
     div[data-testid="stMetric"] {{ 
         background-color: {C_CARD_WHITE}; 
         border: 1px solid #E2E8F0; 
@@ -166,7 +158,6 @@ if not st.session_state['usuario_logado']:
 user = st.session_state['usuario_logado']
 perfil = user['perfil']
 
-# SIDEBAR
 with st.sidebar:
     st.markdown("<br>", unsafe_allow_html=True)
     render_logo(width=130)
@@ -199,7 +190,6 @@ else:
 c_id = int(c_data['cliente_id'])
 active = not bool(c_data['bot_pausado'])
 
-# HEADER
 c1, c2 = st.columns([3, 1])
 with c1:
     st.title(c_data['nome_empresa'])
@@ -213,7 +203,6 @@ with c2:
 
 st.divider()
 
-# KPIS
 tot = c_data['total_mensagens']
 sav = round((tot * 1.5) / 60, 1)
 rev = float(c_data['receita_total'] or 0)
@@ -224,14 +213,14 @@ k3.metric("Atendimentos", c_data['total_atendimentos'])
 k4.metric("Status Atual", "Online 🟢" if active else "Offline 🔴")
 st.markdown("<br>", unsafe_allow_html=True)
 
-tabs = st.tabs(["📊 Analytics", "👁️ Espião", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
+# RETIRADA ABA ESPIÃO
+tabs = st.tabs(["📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
 
 # ==============================================================================
-# ABA 1: ANALYTICS (MODIFICADA)
+# ABA 1: ANALYTICS
 # ==============================================================================
 with tabs[0]:
     try:
-        # Carrega dados
         r_s = supabase.table('agendamentos_salao').select('created_at, valor_sinal_registrado, status, produto_salao_id').eq('cliente_id', c_id).execute().data
         r_p = supabase.table('agendamentos').select('created_at, valor_sinal_registrado, status, servico_id').eq('cliente_id', c_id).execute().data
         r_pr = supabase.table('produtos').select('id, nome').eq('cliente_id', c_id).execute().data
@@ -249,63 +238,36 @@ with tabs[0]:
             df['dt'] = df['dt_full'].dt.date
             df = df[df['st'] != 'Cancelado']
             
-            # --- FILTROS (DATA + PRODUTO) ---
             min_date = df['dt'].min()
             max_date = df['dt'].max()
             if pd.isnull(min_date): min_date = datetime.now().date()
             if pd.isnull(max_date): max_date = datetime.now().date()
-            
-            # Garante range válido
-            default_val = datetime.now().date()
-            if default_val < min_date: default_val = min_date
-            if default_val > max_date: default_val = max_date
             
             with st.container(border=True):
                 cf1, cf2 = st.columns(2)
                 with cf1:
                     d_select = st.date_input("📅 Período", value=(min_date, max_date), min_value=min_date, max_value=max_date)
                 with cf2:
-                    # Filtro de Produto
                     prods_un = df['p'].unique()
                     prod_sel = st.multiselect("📦 Filtrar Produtos", prods_un, default=prods_un)
 
-            # Aplica Filtros
             df_filt = df.copy()
             if isinstance(d_select, tuple) and len(d_select) == 2:
                 start_d, end_d = d_select
                 df_filt = df_filt[(df_filt['dt'] >= start_d) & (df_filt['dt'] <= end_d)]
-            
             if prod_sel:
                 df_filt = df_filt[df_filt['p'].isin(prod_sel)]
 
             st.markdown("<br>", unsafe_allow_html=True)
 
-            # --- LINHA 1: RECEITA DIÁRIA & SHARE DE PRODUTOS ---
             c_g1, c_g2 = st.columns(2)
-            
             with c_g1:
                 st.markdown("##### 📈 Receita Diária")
                 df_g = df_filt.groupby('dt')['v'].sum().reset_index()
-                
                 if not df_g.empty:
-                    # Gráfico de Linha Clean (Smooth, sem grid, valor na linha)
                     fig = px.line(df_g, x='dt', y='v', text='v')
-                    fig.update_traces(
-                        line_shape='spline',     # Curva suave
-                        line_color=C_ACCENT_NEON, 
-                        line_width=4,
-                        textposition="top center",
-                        texttemplate='R$%{text:.0f}', # Valor na linha
-                        mode='lines+text' # Remove bolinhas, mantem linha + texto
-                    )
-                    fig.update_layout(
-                        paper_bgcolor="rgba(0,0,0,0)", 
-                        plot_bgcolor="rgba(0,0,0,0)",
-                        font={'color': C_TEXT_DARK},
-                        xaxis=dict(showgrid=False, title=None), # Sem grid vertical
-                        yaxis=dict(showgrid=False, showticklabels=False, title=None), # Sem grid horizontal e sem eixo Y
-                        margin=dict(l=0, r=0, t=20, b=20)
-                    )
+                    fig.update_traces(line_shape='spline', line_color=C_ACCENT_NEON, line_width=4, textposition="top center", texttemplate='R$%{text:.0f}', mode='lines+text')
+                    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': C_TEXT_DARK}, xaxis=dict(showgrid=False, title=None), yaxis=dict(showgrid=False, showticklabels=False, title=None), margin=dict(l=0, r=0, t=20, b=20))
                     st.plotly_chart(fig, use_container_width=True)
                 else: st.info("Sem dados.")
 
@@ -313,124 +275,105 @@ with tabs[0]:
                 st.markdown("##### 🍕 Share de Produtos")
                 df_top = df_filt.groupby('p')['v'].sum().reset_index()
                 if not df_top.empty:
-                    # Gráfico de Pizza (Donut)
                     fig2 = px.pie(df_top, values='v', names='p', hole=0.5, color_discrete_sequence=px.colors.sequential.Bluyl)
                     fig2.update_traces(textinfo='percent+label', textposition='inside')
-                    fig2.update_layout(
-                        paper_bgcolor="rgba(0,0,0,0)", 
-                        plot_bgcolor="rgba(0,0,0,0)", 
-                        font={'color': C_TEXT_DARK},
-                        showlegend=False,
-                        margin=dict(l=0, r=0, t=20, b=20)
-                    )
+                    fig2.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': C_TEXT_DARK}, showlegend=False, margin=dict(l=0, r=0, t=20, b=20))
                     st.plotly_chart(fig2, use_container_width=True)
                 else: st.info("Sem dados.")
 
             st.divider()
             
-            # --- LINHA 2: TENDÊNCIAS (NOVOS) ---
             st.markdown("#### 🚀 Tendências")
             c_t1, c_t2 = st.columns(2)
-
             with c_t1:
                 st.markdown("##### Tendência de Faturamento (Semanal)")
-                # Agrupando por semana para ver tendência macro
                 try:
                     df_trend = df_filt.copy()
                     df_trend['semana'] = pd.to_datetime(df_trend['dt']).dt.strftime('%Y-Semana %U')
                     df_w = df_trend.groupby('semana')['v'].sum().reset_index()
-                    
                     fig3 = px.bar(df_w, x='semana', y='v')
                     fig3.update_traces(marker_color=C_SIDEBAR_NAVY, marker_line_width=0)
-                    fig3.update_layout(
-                        paper_bgcolor="rgba(0,0,0,0)", 
-                        plot_bgcolor="rgba(0,0,0,0)",
-                        font={'color': C_TEXT_DARK},
-                        xaxis=dict(showgrid=False, title=None),
-                        yaxis=dict(showgrid=True, gridcolor='#E2E8F0', title=None),
-                        margin=dict(l=0, r=0, t=20, b=20)
-                    )
+                    fig3.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': C_TEXT_DARK}, xaxis=dict(showgrid=False, title=None), yaxis=dict(showgrid=True, gridcolor='#E2E8F0', title=None), margin=dict(l=0, r=0, t=20, b=20))
                     st.plotly_chart(fig3, use_container_width=True)
-                except: st.info("Dados insuficientes para tendência semanal.")
-
+                except: st.info("Dados insuficientes.")
             with c_t2:
                 st.markdown("##### Tendência de Produtos (Evolução)")
-                # Gráfico de Área Empilhada (Stacked Area)
                 try:
                     df_area = df_filt.groupby(['dt', 'p'])['v'].sum().reset_index()
                     fig4 = px.area(df_area, x='dt', y='v', color='p')
-                    fig4.update_layout(
-                        paper_bgcolor="rgba(0,0,0,0)", 
-                        plot_bgcolor="rgba(0,0,0,0)",
-                        font={'color': C_TEXT_DARK},
-                        xaxis=dict(showgrid=False, title=None),
-                        yaxis=dict(showgrid=True, gridcolor='#E2E8F0', showticklabels=False, title=None),
-                        margin=dict(l=0, r=0, t=20, b=20),
-                        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-                    )
+                    fig4.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': C_TEXT_DARK}, xaxis=dict(showgrid=False, title=None), yaxis=dict(showgrid=True, gridcolor='#E2E8F0', showticklabels=False, title=None), margin=dict(l=0, r=0, t=20, b=20), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
                     st.plotly_chart(fig4, use_container_width=True)
-                except: st.info("Sem dados para evolução.")
-
-        else:
-            st.info("Sem dados de transações para exibir gráficos.")
+                except: st.info("Sem dados.")
+        else: st.info("Sem dados.")
     except Exception as e: st.error(f"Erro Visual: {e}")
 
 # ==============================================================================
-# ABA 2: ESPIÃO
+# ABA 2: PRODUTOS (ATUALIZADA)
 # ==============================================================================
 with tabs[1]:
-    cl, cr = st.columns([1, 2])
-    with cl:
-        try:
-            rc = supabase.table('conversas').select('id, cliente_wa_id, updated_at, metadata').eq('cliente_id', c_id).order('updated_at', desc=True).limit(15).execute()
-            if rc.data:
-                opts = {}
-                for c in rc.data:
-                    dt = pd.to_datetime(c['updated_at']).strftime('%d/%m %H:%M') if c['updated_at'] else ""
-                    m = c.get('metadata') or {}
-                    nm = m.get('push_name') or c['cliente_wa_id']
-                    opts[f"{nm} ({dt})"] = c['id']
-                sel = st.radio("Conversas Recentes:", list(opts.keys()))
-                sid = opts[sel]
-                if st.button("🔄 Atualizar"): st.rerun()
-            else: sid = None
-        except: sid = None
-    with cr:
-        if sid:
-            try:
-                rm = supabase.table('historico_mensagens').select('*').eq('conversa_id', sid).order('created_at', desc=True).limit(40).execute()
-                msgs = rm.data[::-1] if rm.data else []
-                cont = st.container(height=500)
-                with cont:
-                    for m in msgs:
-                        role = m['role']
-                        av = "👤" if role=='user' else "🐙"
-                        with st.chat_message(role, avatar=av): st.write(m['content'])
-            except: pass
-
-# ==============================================================================
-# ABA 3: PRODUTOS
-# ==============================================================================
-with tabs[2]:
     c1, c2 = st.columns([2,1])
     with c1:
-        rp = supabase.table('produtos').select('nome, categoria, ativo').eq('cliente_id', c_id).order('nome').execute()
-        if rp.data: st.dataframe(pd.DataFrame(rp.data), use_container_width=True, hide_index=True)
+        # Busca colunas incluindo 'regras_preco' para extrair o valor
+        rp = supabase.table('produtos').select('nome, categoria, regras_preco').eq('cliente_id', c_id).order('nome').execute()
+        if rp.data:
+            df_prod = pd.DataFrame(rp.data)
+            
+            # Lógica para extrair o preço do JSONB
+            def extrair_preco(x):
+                try:
+                    # Se vier como dict
+                    if isinstance(x, dict): return x.get('preco_padrao', 0)
+                    # Se vier como string (caso raro, mas possível), tenta converter
+                    if isinstance(x, str): return json.loads(x).get('preco_padrao', 0)
+                    return 0
+                except: return 0
+
+            df_prod['Preço (R$)'] = df_prod['regras_preco'].apply(extrair_preco)
+            
+            # Seleciona e renomeia apenas as colunas desejadas (Sem 'ativo', com 'preço')
+            df_display = df_prod[['nome', 'categoria', 'Preço (R$)']]
+            df_display.columns = ['Nome', 'Categoria', 'Preço (R$)']
+            
+            st.dataframe(df_display, use_container_width=True, hide_index=True)
+        else:
+            st.info("Nenhum produto cadastrado.")
+
     with c2:
         with st.form("add"):
-            st.write("Novo Item")
+            st.markdown("#### 🆕 Novo Item")
             n = st.text_input("Nome")
-            c = st.text_input("Categoria")
-            p = st.number_input("Preço", min_value=0.0)
+            
+            # MUDANÇA: Selectbox para padronização
+            c = st.selectbox("Categoria", ["Serviço", "Produto"])
+            
+            p = st.number_input("Preço", min_value=0.0, step=10.0)
+            
             if st.form_submit_button("Salvar", type="primary"):
+                # Dicionário do preço
                 js = {"preco_padrao": p, "duracao_minutos": 60}
-                supabase.table('produtos').insert({"cliente_id": c_id, "nome": n, "categoria": c, "ativo": True, "regras_preco": json.dumps(js)}).execute()
-                st.rerun()
+                
+                try:
+                    # CORREÇÃO DO ERRO API:
+                    # Passamos 'js' (dict) direto, e não json.dumps(js) (string).
+                    # A biblioteca do supabase faz a conversão correta para JSONB.
+                    supabase.table('produtos').insert({
+                        "cliente_id": c_id, 
+                        "nome": n, 
+                        "categoria": c, 
+                        "ativo": True, 
+                        "regras_preco": js 
+                    }).execute()
+                    
+                    st.success(f"Item '{n}' salvo!")
+                    time.sleep(1)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao salvar: {e}")
 
 # ==============================================================================
-# ABA 4: AGENDA
+# ABA 3: AGENDA
 # ==============================================================================
-with tabs[3]:
+with tabs[2]:
     st.subheader("Próximos Agendamentos")
     try:
         df_final = pd.DataFrame()
@@ -451,10 +394,10 @@ with tabs[3]:
     except Exception as e: st.error(f"Erro agenda: {e}")
 
 # ==============================================================================
-# ABA 5: CÉREBRO
+# ABA 4: CÉREBRO
 # ==============================================================================
-if perfil == 'admin' and len(tabs) > 4:
-    with tabs[4]:
+if perfil == 'admin' and len(tabs) > 3:
+    with tabs[3]:
         st.subheader("Configuração da IA")
         try:
             res = supabase.table('clientes').select('config_fluxo, prompt_full').eq('id', c_id).execute()
