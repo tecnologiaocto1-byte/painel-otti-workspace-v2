@@ -374,73 +374,85 @@ with tabs[1]:
             st.caption("Sem itens para excluir.")
 
 # ==============================================================================
-# ABA 3: AGENDA (TURBINADA 🚀)
+# ABA 3: AGENDA (NOMES DOS SERVIÇOS E PROFISSIONAIS)
 # ==============================================================================
 with tabs[2]:
     st.subheader("📅 Próximos Agendamentos")
     
-    # 1. Busca Tabelas Auxiliares (Profissionais e Produtos) para Mapeamento
+    # 1. Carrega Dicionários para DE-PARA (ID -> Nome)
     try:
-        # Busca Produtos/Serviços
+        # MAPA DE PRODUTOS/SERVIÇOS
         res_prod = supabase.table('produtos').select('id, nome').eq('cliente_id', c_id).execute()
         map_prod = {p['id']: p['nome'] for p in res_prod.data} if res_prod.data else {}
 
-        # Busca Profissionais (Tenta buscar, se não existir tabela, ignora)
+        # MAPA DE PROFISSIONAIS
         map_prof = {}
         try:
+            # Tenta buscar, se a tabela não existir ou estiver vazia, não quebra o código
             res_prof = supabase.table('profissionais').select('id, nome').eq('cliente_id', c_id).execute()
             if res_prof.data:
                 map_prof = {p['id']: p['nome'] for p in res_prof.data}
-        except: pass # Se der erro (tabela não existe), segue vazio
+        except: 
+            pass # Segue a vida se não tiver profissionais
 
-        # 2. Busca Agendamentos
         lista_agenda = []
 
-        # A) SALÃO (Produtos)
-        rs = supabase.table('agendamentos_salao').select('data_reserva, valor_total_registrado, cliente_final_waid, produto_salao_id').eq('cliente_id', c_id).order('created_at', desc=True).limit(30).execute()
-        if rs.data:
-            for item in rs.data:
-                nome_prod = map_prod.get(item.get('produto_salao_id'), 'Salão/Produto')
-                lista_agenda.append({
-                    'Data': item['data_reserva'],
-                    'Cliente': item.get('cliente_final_waid', 'Cliente'),
-                    'Item': nome_prod,
-                    'Profissional': '-', # Produtos de salão geralmente não tem profissional específico no agendamento simples
-                    'Valor': item.get('valor_total_registrado', 0),
-                    'Tipo': 'Salão'
-                })
+        # A) AGENDA SALÃO (Tabela agendamentos_salao)
+        try:
+            rs = supabase.table('agendamentos_salao').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(30).execute()
+            if rs.data:
+                for item in rs.data:
+                    # Busca nome do produto (Se não achar, usa 'Salão')
+                    nome_prod = map_prod.get(item.get('produto_salao_id'), 'Salão/Evento')
+                    
+                    lista_agenda.append({
+                        'Data': item.get('data_reserva'),
+                        'Cliente': item.get('cliente_final_waid', 'Cliente'), # Poderia buscar nome se tivesse tabela de clientes finais
+                        'Serviço/Produto': nome_prod,
+                        'Profissional': '-', # Salão geralmente não tem profissional no agendamento simples
+                        'Valor': item.get('valor_total_registrado', 0),
+                        'Status': item.get('status')
+                    })
+        except: pass
 
-        # B) SERVIÇOS
-        # Tentamos buscar colunas extras (cliente_final_nome, profissional_id) se existirem
-        rv = supabase.table('agendamentos').select('data_hora_inicio, valor_total_registrado, servico_id, profissional_id, cliente_final_nome').eq('cliente_id', c_id).order('created_at', desc=True).limit(30).execute()
-        
-        if rv.data:
-            for item in rv.data:
-                nome_serv = map_prod.get(item.get('servico_id'), 'Serviço')
-                nome_prof = map_prof.get(item.get('profissional_id'), 'Profissional') if item.get('profissional_id') else 'Profissional'
-                nome_cli = item.get('cliente_final_nome') or 'Cliente'
-                
-                lista_agenda.append({
-                    'Data': item['data_hora_inicio'],
-                    'Cliente': nome_cli,
-                    'Item': nome_serv,
-                    'Profissional': nome_prof,
-                    'Valor': item.get('valor_total_registrado', 0),
-                    'Tipo': 'Serviço'
-                })
+        # B) AGENDA SERVIÇOS/SALÃO CABELEIREIRO (Tabela agendamentos)
+        try:
+            rv = supabase.table('agendamentos').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(30).execute()
+            if rv.data:
+                for item in rv.data:
+                    # Busca nome do serviço
+                    nome_serv = map_prod.get(item.get('servico_id'), 'Serviço')
+                    # Busca nome do profissional
+                    nome_prof = map_prof.get(item.get('profissional_id'), '-')
+                    
+                    # Formata data se for timestamp
+                    data_full = item.get('data_hora_inicio')
+                    
+                    lista_agenda.append({
+                        'Data': data_full,
+                        'Cliente': item.get('cliente_final_nome') or 'Cliente',
+                        'Serviço/Produto': nome_serv,
+                        'Profissional': nome_prof,
+                        'Valor': item.get('valor_total_registrado', 0),
+                        'Status': item.get('status', 'Confirmado')
+                    })
+        except: pass
 
-        # 3. Monta e Exibe Tabela Final
+        # 3. Monta Tabela Final
         if lista_agenda:
             df_final = pd.DataFrame(lista_agenda)
             
-            # Formatação de Data
-            df_final['Data'] = pd.to_datetime(df_final['Data']).dt.strftime('%d/%m/%Y %H:%M')
+            # Tenta formatar as datas para ficar bonito
+            try:
+                df_final['Data'] = pd.to_datetime(df_final['Data']).dt.strftime('%d/%m/%Y %H:%M')
+            except: pass # Se falhar, deixa como texto original
+
+            # Ordenação final das colunas
+            cols = ['Data', 'Cliente', 'Serviço/Produto', 'Profissional', 'Valor', 'Status']
+            # Filtra colunas que existem no dataframe (segurança)
+            cols = [c for c in cols if c in df_final.columns]
             
-            # Reordena colunas para ficar bonito
-            df_final = df_final[['Data', 'Cliente', 'Item', 'Profissional', 'Valor']]
-            df_final.columns = ['Data/Hora', 'Cliente', 'Serviço/Produto', 'Profissional', 'Valor (R$)']
-            
-            st.dataframe(df_final, use_container_width=True, hide_index=True)
+            st.dataframe(df_final[cols], use_container_width=True, hide_index=True)
         else:
             st.info("Nenhum agendamento encontrado.")
 
