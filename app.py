@@ -302,28 +302,39 @@ with tabs[0]:
     except Exception as e: st.error(f"Erro Visual: {e}")
 
 # ==============================================================================
-# ABA 2: PRODUTOS (CORRIGIDO: SEM ID)
+# ABA 2: PRODUTOS (COM EXCLUIR)
 # ==============================================================================
 with tabs[1]:
+    # Faz o Select incluindo o ID para podermos excluir
+    rp = supabase.table('produtos').select('id, nome, categoria, regras_preco').eq('cliente_id', c_id).order('nome').execute()
+    
+    # Prepara o Dataframe
+    if rp.data:
+        df_prod = pd.DataFrame(rp.data)
+        def extrair_preco(x):
+            try:
+                if isinstance(x, dict): return x.get('preco_padrao', 0)
+                if isinstance(x, str): return json.loads(x).get('preco_padrao', 0)
+                return 0
+            except: return 0
+        df_prod['Preço (R$)'] = df_prod['regras_preco'].apply(extrair_preco)
+    else:
+        df_prod = pd.DataFrame()
+
     c1, c2 = st.columns([2,1])
+    
+    # --- COLUNA DA TABELA ---
     with c1:
-        rp = supabase.table('produtos').select('nome, categoria, regras_preco').eq('cliente_id', c_id).order('nome').execute()
-        if rp.data:
-            df_prod = pd.DataFrame(rp.data)
-            def extrair_preco(x):
-                try:
-                    if isinstance(x, dict): return x.get('preco_padrao', 0)
-                    if isinstance(x, str): return json.loads(x).get('preco_padrao', 0)
-                    return 0
-                except: return 0
-            df_prod['Preço (R$)'] = df_prod['regras_preco'].apply(extrair_preco)
+        if not df_prod.empty:
             df_display = df_prod[['nome', 'categoria', 'Preço (R$)']]
             df_display.columns = ['Nome', 'Categoria', 'Preço (R$)']
             st.dataframe(df_display, use_container_width=True, hide_index=True)
         else:
             st.info("Nenhum produto cadastrado.")
 
+    # --- COLUNA DE AÇÕES ---
     with c2:
+        # FORMULÁRIO DE ADIÇÃO
         with st.form("add"):
             st.markdown("#### 🆕 Novo Item")
             n = st.text_input("Nome")
@@ -333,8 +344,6 @@ with tabs[1]:
             if st.form_submit_button("Salvar", type="primary"):
                 js = {"preco_padrao": p, "duracao_minutos": 60}
                 try:
-                    # CORREÇÃO:
-                    # NÃO ENVIAMOS 'id' POIS O BANCO AGORA É AUTO-INCREMENT
                     supabase.table('produtos').insert({
                         "cliente_id": c_id, 
                         "nome": n, 
@@ -348,6 +357,30 @@ with tabs[1]:
                     st.rerun()
                 except Exception as e:
                     st.error(f"Erro ao salvar: {e}")
+
+        # DIVISOR
+        st.divider()
+
+        # ÁREA DE EXCLUSÃO (NOVA)
+        st.markdown("#### 🗑️ Excluir Item")
+        if not df_prod.empty:
+            # Cria dicionário {Nome: ID} para o selectbox
+            map_del = {row['nome']: row['id'] for i, row in df_prod.iterrows()}
+            
+            sel_del = st.selectbox("Selecione o produto", list(map_del.keys()), key="del_sel")
+            
+            # Botão de exclusão
+            if st.button("Confirmar Exclusão", type="secondary"):
+                try:
+                    id_to_del = map_del[sel_del]
+                    supabase.table('produtos').delete().eq('id', id_to_del).execute()
+                    st.success("Produto removido!")
+                    time.sleep(1)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Erro ao excluir: {e}")
+        else:
+            st.caption("Sem itens para excluir.")
 
 # ==============================================================================
 # ABA 3: AGENDA
