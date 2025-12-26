@@ -6,6 +6,7 @@ from supabase import create_client
 import json
 import time
 import os
+import base64 # <--- NECESSÁRIO PARA O LOGO NO LOGIN
 from datetime import datetime, timedelta, time as dt_time
 
 # ==============================================================================
@@ -36,7 +37,7 @@ def init_connection():
 supabase = init_connection()
 
 # ==============================================================================
-# 3. CSS (CORREÇÃO BOTÃO E CORES)
+# 3. CSS (LOGIN REFINADO + GERAL)
 # ==============================================================================
 st.markdown(f"""
 <style>
@@ -44,6 +45,7 @@ st.markdown(f"""
 
     .stApp {{ background-color: {C_BG_OCTO_LIGHT}; color: {C_TEXT_DARK}; font-family: 'Inter', sans-serif; }}
     
+    /* --- SIDEBAR --- */
     section[data-testid="stSidebar"] {{ 
         background-color: {C_SIDEBAR_NAVY}; 
         border-right: 1px solid rgba(255,255,255,0.1); 
@@ -56,6 +58,7 @@ st.markdown(f"""
     h2, h3, h4 {{ font-family: 'Sora', sans-serif; color: {C_TEXT_DARK} !important; font-weight: 700; }}
     p, label {{ color: {C_TEXT_DARK} !important; }}
 
+    /* --- INPUTS --- */
     .stTextInput > div > div > input, .stTextArea > div > div > textarea {{
         background-color: #FFFFFF !important;
         color: #000000 !important;
@@ -71,17 +74,19 @@ st.markdown(f"""
     div[data-baseweb="popover"] {{ background-color: #FFFFFF !important; }}
     div[data-baseweb="option"] {{ color: #000000 !important; }}
 
-    /* --- BOTÃO SALVAR (PRIMARY) - CORRIGIDO --- */
+    /* --- BOTÕES --- */
     button[kind="primary"] {{
         background: linear-gradient(90deg, #3F00FF 0%, #031A89 100%) !important;
-        color: #FFFFFF !important; /* Texto BRANCO forçado */
+        color: #FFFFFF !important; 
         border: none !important; 
         padding: 0.6rem 1.2rem; 
         border-radius: 6px;
         font-weight: 600;
+        transition: all 0.3s ease;
     }}
     button[kind="primary"]:hover {{
-        color: #E2E8F0 !important; /* Garante legibilidade no hover */
+        box-shadow: 0 4px 12px rgba(63, 0, 255, 0.3);
+        transform: translateY(-1px);
     }}
 
     div[data-testid="stAppViewContainer"] .main .stButton > button {{
@@ -101,6 +106,31 @@ st.markdown(f"""
     }}
     section[data-testid="stSidebar"] button p {{ color: #FFFFFF !important; }}
 
+    /* --- ESTILO ESPECIAL DO LOGIN --- */
+    .login-container {{
+        max-width: 400px;
+        margin: 5vh auto 0 auto;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+        overflow: hidden;
+    }}
+    .login-header {{
+        background-color: {C_SIDEBAR_NAVY};
+        padding: 40px 0;
+        text-align: center;
+        border-bottom: 4px solid {C_ACCENT_NEON};
+    }}
+    .login-body {{
+        padding: 30px;
+    }}
+    /* Esconde borda padrão do form para integrar ao card */
+    div[data-testid="stForm"] {{
+        border: none;
+        padding: 0;
+    }}
+
+    /* Cards KPI */
     div[data-testid="stMetric"] {{ 
         background-color: {C_CARD_WHITE}; 
         border: 1px solid #E2E8F0; 
@@ -111,30 +141,54 @@ st.markdown(f"""
     div[data-testid="stMetricValue"] {{ color: {C_ACCENT_NEON} !important; font-family: 'Sora', sans-serif; font-weight: 700; }}
     label[data-testid="stMetricLabel"] {{ color: #64748B !important; font-weight: 500; }}
 
-    .login-wrapper {{ margin-top: 10vh; max-width: 400px; margin-left: auto; margin-right: auto; text-align: center; }}
+    #MainMenu, footer, header {{visibility: hidden;}}
     .block-container {{padding-top: 2rem;}}
 </style>
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 4. LOGIN
+# 4. LOGIN (COM LOGO NA FAIXA AZUL)
 # ==============================================================================
 def render_logo(width=100):
     if os.path.exists("logo.png"): st.image("logo.png", width=width)
     else: st.markdown(f"<h1 style='color:{C_ACCENT_NEON}; margin:0; font-family:Sora; text-align:center;'>OCTO</h1>", unsafe_allow_html=True)
+
+# Função auxiliar para embutir imagem no HTML
+def get_image_as_base64(path):
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+        return base64.b64encode(data).decode()
+    except: return None
 
 if 'usuario_logado' not in st.session_state: st.session_state['usuario_logado'] = None
 
 def render_login_screen():
     c1, c2, c3 = st.columns([1, 1, 1])
     with c2:
-        st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
-        render_logo(width=120)
-        st.markdown(f"<h3 style='margin-bottom:30px; color:{C_TEXT_DARK}; text-align:center;'>Otti Workspace</h3>", unsafe_allow_html=True)
-        
+        # Prepara o Logo
+        logo_b64 = get_image_as_base64("logo.png")
+        if logo_b64:
+            img_html = f'<img src="data:image/png;base64,{logo_b64}" width="140" style="filter: brightness(0) invert(1);">' # Logo branco
+        else:
+            img_html = '<h1 style="color:white; font-family:Sora; margin:0;">OCTO</h1>'
+
+        # Renderiza Cabeçalho Azul
+        st.markdown(f"""
+        <div class="login-container">
+            <div class="login-header">
+                {img_html}
+            </div>
+            <div class="login-body">
+                <h3 style="text-align:center; color:{C_TEXT_DARK}; margin-bottom:20px; font-family:Sora;">Otti Workspace</h3>
+        """, unsafe_allow_html=True)
+
+        # Formulário dentro do Card
         with st.form("login_master"):
             email = st.text_input("E-mail")
             senha = st.text_input("Senha", type="password")
+            
+            st.markdown("<br>", unsafe_allow_html=True)
             submitted = st.form_submit_button("ACESSAR SISTEMA", use_container_width=True, type="primary")
             
             if submitted:
@@ -149,7 +203,9 @@ def render_login_screen():
                                 st.rerun()
                             else: st.error("Credenciais inválidas.")
                         except: st.error("Erro de conexão.")
-        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Fecha Divs
+        st.markdown('</div></div>', unsafe_allow_html=True)
 
 if not st.session_state['usuario_logado']:
     render_login_screen()
@@ -341,7 +397,7 @@ with tabs[1]:
         with st.form("add"):
             st.markdown("#### 🆕 Novo Item")
             n = st.text_input("Nome")
-            c = st.selectbox("Categoria", ["Serviço", "Produto"])
+            c = st.selectbox("Categoria", ["Serviço", "Produto", "Serviço Salão"]) # Adicionado Serviço Salão para facilitar
             p = st.number_input("Preço", min_value=0.0, step=10.0)
             
             if st.form_submit_button("Salvar", type="primary"):
@@ -528,7 +584,7 @@ with tabs[2]:
                             payload = {
                                 "cliente_id": c_id,
                                 "data_hora_inicio": dt_iso,
-                                "cliente_final_waid": nome_cli, # CORRIGIDO
+                                "cliente_final_waid": nome_cli, 
                                 "servico_id": map_prod_inv[sel_serv],
                                 "valor_total_registrado": val,
                                 "status": "Confirmado"
@@ -568,7 +624,7 @@ with tabs[2]:
                         except Exception as e: st.error(f"Erro: {e}")
 
 # ==============================================================================
-# ABA 4: CÉREBRO (CORREÇÃO JSON + BOTÃO VISÍVEL)
+# ABA 4: CÉREBRO
 # ==============================================================================
 if perfil == 'admin' and len(tabs) > 3:
     with tabs[3]:
@@ -614,14 +670,13 @@ if perfil == 'admin' and len(tabs) > 3:
                 
                 st.markdown("<br>", unsafe_allow_html=True)
                 
-                # CORREÇÃO: Enviamos 'curr_c' direto (Dicionário), SEM json.dumps()
                 if st.button("SALVAR CONFIGURAÇÕES", type="primary"):
                     curr_c['openai_voice'] = nova_voz
                     curr_c['temperature'] = nova_temp
                     
                     supabase.table('clientes').update({
                         'prompt_full': new_p,
-                        'config_fluxo': curr_c # <--- AQUI ESTAVA O ERRO DO JSON QUEBRADO
+                        'config_fluxo': curr_c
                     }).eq('id', c_id).execute()
                     
                     st.success("Configurações salvas com sucesso!")
