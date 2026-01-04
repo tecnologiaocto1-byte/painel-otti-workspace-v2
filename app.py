@@ -588,4 +588,3 @@ if len(tabs) > 3:
                     supabase.table('clientes').update({'prompt_full': new_p, 'config_fluxo': curr_c}).eq('id', c_id).execute()
                     st.success("Salvo!"); time.sleep(1); st.rerun()
         except Exception as e: st.error(f"Erro: {e}")
-
