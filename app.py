@@ -1,29 +1,18 @@
 import streamlit as st
-
 import pandas as pd
-
 import plotly.express as px
-
 import plotly.graph_objects as go
-
 from supabase import create_client
-
 import json
-
 import time
-
 import os
-
 import base64
-
 from datetime import datetime, timedelta, time as dt_time
 
 
 
 # ==============================================================================
-
 # 1. SETUP
-
 # ==============================================================================
 
 st.set_page_config(page_title="Otti Workspace", layout="wide", page_icon="🐙")
@@ -1070,5 +1059,6 @@ with tabs[3]:
             
     except Exception as e:
         st.error(f"Erro de conexão com o Banco de Dados: {e}")
+
 
 
