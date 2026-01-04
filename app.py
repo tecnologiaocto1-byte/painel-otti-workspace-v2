@@ -996,78 +996,111 @@ with tabs[2]:
 
 
 # ------------------------------------------------------------------------------
-
-# TAB 4: CÉREBRO (OK)
-
+# TAB 4: CÉREBRO (BLINDADO)
 # ------------------------------------------------------------------------------
-
 with tabs[3]:
     st.subheader("Configuração da IA")
-    
-    # Debug: Se a aba continuar vazia, descomente a linha abaixo para ver se o ID existe
-    # st.write(f"Debug ID Cliente: {c_id}")
+
+    # Bloco de segurança para garantir que o c_id é válido
+    if not c_id:
+        st.error("ID do cliente não identificado.")
+        st.stop()
 
     try:
-        # A busca deve estar alinhada na mesma indentação do st.subheader
+        # Busca os dados na tabela 'clientes'
         res = supabase.table('clientes').select('config_fluxo, prompt_full').eq('id', c_id).execute()
         
-        if res.data:
+        # Verifica se o banco retornou algo
+        if res.data and len(res.data) > 0:
             d = res.data[0]
             
-            # Tratamento de segurança para campos vazios
+            # --- TRATAMENTO 1: JSON vs STRING vs NULO ---
             curr_c = d.get('config_fluxo')
-            if not curr_c: 
-                curr_c = {}
-            elif isinstance(curr_c, str): 
-                try: curr_c = json.loads(curr_c)
-                except: curr_c = {}
             
+            # Se for None, vira dict vazio
+            if curr_c is None:
+                curr_c = {}
+            # Se for string, tenta converter. Se falhar, vira dict vazio
+            elif isinstance(curr_c, str):
+                try:
+                    curr_c = json.loads(curr_c)
+                except json.JSONDecodeError:
+                    st.warning("Aviso: 'config_fluxo' estava corrompido e foi resetado.")
+                    curr_c = {}
+            # Se não for nem dict nem string (ex: lista), força dict vazio
+            elif not isinstance(curr_c, dict):
+                curr_c = {}
+
+            # --- TRATAMENTO 2: PROMPT NULO ---
+            prompt_atual = d.get('prompt_full')
+            if prompt_atual is None: prompt_atual = ""
+
+            # --- TRATAMENTO 3: TEMPERATURA COM VÍRGULA (O VILÃO) ---
+            raw_temp = curr_c.get('temperature', 0.5)
+            temp_atual = 0.5 # Valor padrão seguro
+
+            try:
+                if isinstance(raw_temp, (int, float)):
+                    temp_atual = float(raw_temp)
+                elif isinstance(raw_temp, str):
+                    # Troca vírgula por ponto antes de converter
+                    temp_clean = raw_temp.replace(',', '.')
+                    temp_atual = float(temp_clean)
+            except:
+                temp_atual = 0.5 # Se tudo falhar, usa 0.5
+
+            # --- RENDERIZAÇÃO DA TELA ---
             c_p1, c_p2 = st.columns([2, 1])
             
             with c_p1:
                 st.markdown("##### Personalidade")
-                prompt_atual = d.get('prompt_full') or ""
-                new_p = st.text_area("Instruções do Sistema", value=prompt_atual, height=350, help="Descreva como o Otti deve se comportar.")
+                new_p = st.text_area("Instruções do Sistema", value=prompt_atual, height=350, help="Prompt do sistema.")
             
             with c_p2:
                 st.markdown("##### Voz e Criatividade")
-                # Fallbacks seguros caso a configuração não exista
-                v_atual = curr_c.get('openai_voice', 'alloy') if isinstance(curr_c, dict) else 'alloy'
-                temp_atual = float(curr_c.get('temperature', 0.5)) if isinstance(curr_c, dict) else 0.5
                 
+                v_atual = curr_c.get('openai_voice', 'alloy')
+                # Garante que v_atual é string
+                if not isinstance(v_atual, str): v_atual = 'alloy'
+
                 vozes_opts = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
                 idx_voz = vozes_opts.index(v_atual) if v_atual in vozes_opts else 0
                 
                 nova_voz = st.selectbox("Voz (Áudio):", vozes_opts, index=idx_voz)
+                
+                # Slider usando o valor tratado
                 nova_temp = st.slider("Criatividade (Temp):", 0.0, 1.0, temp_atual)
             
             st.divider()
             
+            # --- BOTÃO SALVAR ---
             col_save, _ = st.columns([1,3])
             with col_save:
                 if st.button("💾 SALVAR CONFIGURAÇÕES", type="primary", use_container_width=True):
                     try:
-                        # Garante que curr_c é um dicionário antes de atualizar
-                        if not isinstance(curr_c, dict): curr_c = {}
-                        
+                        # Atualiza o dict com os novos valores
                         curr_c['openai_voice'] = nova_voz
-                        curr_c['temperature'] = nova_temp
+                        curr_c['temperature'] = nova_temp 
                         
                         supabase.table('clientes').update({
                             'prompt_full': new_p, 
                             'config_fluxo': curr_c
                         }).eq('id', c_id).execute()
                         
-                        st.success("Configurações atualizadas com sucesso!")
+                        st.success("Configurações atualizadas!")
                         time.sleep(1.5)
                         st.rerun()
                     except Exception as e:
                         st.error(f"Erro ao salvar: {e}")
         else:
-            st.warning(f"Não foi possível carregar as configurações. Verifique se o Cliente ID {c_id} existe na tabela 'clientes'.")
-            
+            # Se caiu aqui, o ID existe no Dashboard mas NÃO na tabela Clientes
+            st.warning(f"Dados não encontrados para o Cliente ID: {c_id}. Verifique se este ID existe na tabela 'clientes'.")
+            st.code(f"ID Buscado: {c_id}")
+
     except Exception as e:
-        st.error(f"Erro de conexão com o Banco de Dados: {e}")
+        # Mostra o erro técnico exato se explodir
+        st.error(f"Erro Crítico ao carregar aba: {e}")
+
 
 
 
