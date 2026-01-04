@@ -60,7 +60,7 @@ st.markdown(f"""
         border: 1px solid #CBD5E1;
         border-radius: 8px;
     }}
-    /* Isso corrige o bug do olho da senha ficando azul */
+    /* Corrige o olho da senha ficando azul */
     .stTextInput > div > div > button {{
         background-color: transparent !important;
         color: #64748B !important;
@@ -87,8 +87,7 @@ st.markdown(f"""
         transform: translateY(-1px);
     }}
 
-    /* --- BOTÃO SAIR DA SIDEBAR (CORRIGIDO) --- */
-    /* Especificidade alta para garantir que pegue só na sidebar */
+    /* --- BOTÃO SAIR DA SIDEBAR --- */
     section[data-testid="stSidebar"] button[kind="secondary"] {{
         background-color: transparent !important;
         border: 1px solid rgba(255,255,255,0.6) !important;
@@ -99,7 +98,6 @@ st.markdown(f"""
         color: {C_SIDEBAR_NAVY} !important;
         border-color: #FFFFFF !important;
     }}
-    /* Garante que o texto dentro do botão acompanhe a cor */
     section[data-testid="stSidebar"] button[kind="secondary"] p {{
         color: inherit !important;
     }}
@@ -178,7 +176,7 @@ def render_login_screen():
             
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # TYPE="PRIMARY" GARANTE O AZUL DEFINIDO NO CSS
+            # Botão Primary para pegar o CSS Azul
             submitted = st.form_submit_button("ENTRAR", type="primary", use_container_width=True)
             
             if submitted:
@@ -220,7 +218,7 @@ with st.sidebar:
     st.markdown("---")
     st.write(f"Olá, **{user.get('nome_usuario', 'User')}**")
     st.markdown("---")
-    # BOTÃO SAIR (Vai pegar o CSS específico da sidebar)
+    # Botão Sair com tipo secondary para pegar o CSS da sidebar
     if st.button("SAIR", type="secondary"): 
         st.session_state['usuario_logado'] = None
         st.rerun()
@@ -278,7 +276,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 tabs = st.tabs(["📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
 
 # ------------------------------------------------------------------------------
-# TAB 1: ANALYTICS (OK)
+# TAB 1: ANALYTICS
 # ------------------------------------------------------------------------------
 with tabs[0]:
     try:
@@ -369,7 +367,7 @@ with tabs[0]:
     except Exception as e: st.error(f"Erro Visual: {e}")
 
 # ------------------------------------------------------------------------------
-# TAB 2: PRODUTOS (OK)
+# TAB 2: PRODUTOS
 # ------------------------------------------------------------------------------
 with tabs[1]:
     rp = supabase.table('produtos').select('id, nome, categoria, regras_preco').eq('cliente_id', c_id).order('nome').execute()
@@ -414,7 +412,7 @@ with tabs[1]:
                 st.success("Removido!"); time.sleep(1); st.rerun()
 
 # ------------------------------------------------------------------------------
-# TAB 3: AGENDA INTELIGENTE (CORRIGIDA)
+# TAB 3: AGENDA INTELIGENTE
 # ------------------------------------------------------------------------------
 with tabs[2]:
     try:
@@ -425,7 +423,7 @@ with tabs[2]:
         if res_prod.data:
             for p in res_prod.data:
                 map_prod[p['id']] = p['nome']
-                if p.get('categoria'): # <--- PROTEÇÃO CONTRA NULL AQUI
+                if p.get('categoria'): 
                     cats_disponiveis.add(p['categoria'])
         
         map_prod_inv = {v: k for k, v in map_prod.items()}
@@ -507,13 +505,12 @@ with tabs[2]:
         if tem_servico: opts.append("Serviço (Horário)")
         if tem_salao: opts.append("Evento (Salão)")
         
-        # AUTO-SELECT se só tiver uma opção
         if len(opts) == 1:
             tipo_add = opts[0]
         elif len(opts) > 1:
             tipo_add = st.radio("Tipo:", opts)
         else:
-            tipo_add = "Serviço (Horário)" # Fallback
+            tipo_add = "Serviço (Horário)"
         
         with st.form("add_agd"):
             cli = st.text_input("Cliente (Nome/WhatsApp)")
@@ -559,32 +556,31 @@ with tabs[2]:
                     except Exception as e: st.error(f"Erro: {e}")
 
 # ------------------------------------------------------------------------------
-# TAB 4: CÉREBRO (OK)
+# TAB 4: CÉREBRO (LIBERADO PARA CLIENTES)
 # ------------------------------------------------------------------------------
-if len(tabs) > 3:
-    with tabs[3]:
-        st.subheader("Configuração da IA")
-        try:
-            res = supabase.table('clientes').select('config_fluxo, prompt_full').eq('id', c_id).execute()
-            if res.data:
-                d = res.data[0]
-                curr_c = d.get('config_fluxo') or {}
-                if isinstance(curr_c, str): curr_c = json.loads(curr_c)
-                
-                c_p1, c_p2 = st.columns([2, 1])
-                with c_p1:
-                    st.markdown("##### Personalidade")
-                    new_p = st.text_area("", value=d.get('prompt_full','') or '', height=350)
-                with c_p2:
-                    st.markdown("##### Voz e Criatividade")
-                    v_atual = curr_c.get('openai_voice', 'alloy')
-                    nova_voz = st.selectbox("Voz:", ["alloy", "echo", "fable", "onyx", "nova", "shimmer"], index=["alloy", "echo", "fable", "onyx", "nova", "shimmer"].index(v_atual) if v_atual in ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] else 0)
-                    nova_temp = st.slider("Temp:", 0.0, 1.0, float(curr_c.get('temperature', 0.5)))
-                
-                st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("SALVAR CONFIGURAÇÕES", type="primary"):
-                    curr_c['openai_voice'] = nova_voz
-                    curr_c['temperature'] = nova_temp
-                    supabase.table('clientes').update({'prompt_full': new_p, 'config_fluxo': curr_c}).eq('id', c_id).execute()
-                    st.success("Salvo!"); time.sleep(1); st.rerun()
-        except Exception as e: st.error(f"Erro: {e}")
+with tabs[3]:
+    st.subheader("Configuração da IA")
+    try:
+        res = supabase.table('clientes').select('config_fluxo, prompt_full').eq('id', c_id).execute()
+        if res.data:
+            d = res.data[0]
+            curr_c = d.get('config_fluxo') or {}
+            if isinstance(curr_c, str): curr_c = json.loads(curr_c)
+            
+            c_p1, c_p2 = st.columns([2, 1])
+            with c_p1:
+                st.markdown("##### Personalidade")
+                new_p = st.text_area("", value=d.get('prompt_full','') or '', height=350)
+            with c_p2:
+                st.markdown("##### Voz e Criatividade")
+                v_atual = curr_c.get('openai_voice', 'alloy')
+                nova_voz = st.selectbox("Voz:", ["alloy", "echo", "fable", "onyx", "nova", "shimmer"], index=["alloy", "echo", "fable", "onyx", "nova", "shimmer"].index(v_atual) if v_atual in ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] else 0)
+                nova_temp = st.slider("Temp:", 0.0, 1.0, float(curr_c.get('temperature', 0.5)))
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("SALVAR CONFIGURAÇÕES", type="primary"):
+                curr_c['openai_voice'] = nova_voz
+                curr_c['temperature'] = nova_temp
+                supabase.table('clientes').update({'prompt_full': new_p, 'config_fluxo': curr_c}).eq('id', c_id).execute()
+                st.success("Salvo!"); time.sleep(1); st.rerun()
+    except Exception as e: st.error(f"Erro: {e}")
