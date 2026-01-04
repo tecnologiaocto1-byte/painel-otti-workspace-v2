@@ -81,209 +81,97 @@ supabase = init_connection()
 # ==============================================================================
 
 st.markdown(f"""
-
 <style>
-
     @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;800&family=Inter:wght@300;400;600&display=swap');
 
-
-
     .stApp {{ background-color: {C_BG_OCTO_LIGHT}; color: {C_TEXT_DARK}; font-family: 'Inter', sans-serif; }}
-
     
-
     /* --- SIDEBAR --- */
-
     section[data-testid="stSidebar"] {{ background-color: {C_SIDEBAR_NAVY}; border-right: 1px solid rgba(255,255,255,0.1); }}
-
     section[data-testid="stSidebar"] p, section[data-testid="stSidebar"] span, section[data-testid="stSidebar"] label {{ color: #FFFFFF !important; }}
 
-
-
     h1 {{ font-family: 'Sora', sans-serif; color: {C_SIDEBAR_NAVY} !important; font-weight: 800; }}
-
     h2, h3, h4 {{ font-family: 'Sora', sans-serif; color: {C_TEXT_DARK} !important; font-weight: 700; }}
-
     p, label {{ color: {C_TEXT_DARK} !important; }}
 
-
+    /* --- CORREÇÃO CRÍTICA DAS ABAS (TABS) --- */
+    /* Força o texto das abas a ser escuro, senão some no modo dark do navegador */
+    button[data-baseweb="tab"] {{
+        color: {C_TEXT_DARK} !important;
+        font-family: 'Sora', sans-serif !important;
+        font-weight: 600 !important;
+    }}
+    /* Aba selecionada ganha destaque */
+    button[data-baseweb="tab"][aria-selected="true"] {{
+        color: {C_ACCENT_NEON} !important;
+        border-color: {C_ACCENT_NEON} !important;
+    }}
 
     /* --- INPUTS LIMPOS --- */
-
     .stTextInput > div > div > input {{
-
         background-color: #FFFFFF !important;
-
         color: #000000 !important;
-
         border: 1px solid #CBD5E1;
-
         border-radius: 8px;
-
     }}
-
-    /* Isso corrige o bug do olho da senha ficando azul */
-
     .stTextInput > div > div > button {{
-
         background-color: transparent !important;
-
         color: #64748B !important;
-
         border: none !important;
-
     }}
-
-
 
     div[data-baseweb="select"] > div {{ background-color: #FFFFFF !important; border-color: #CBD5E1 !important; }}
-
     div[data-baseweb="select"] span {{ color: #000000 !important; }}
-
     div[data-baseweb="popover"] {{ background-color: #FFFFFF !important; }}
-
     div[data-baseweb="option"] {{ color: #000000 !important; }}
 
-
-
-    /* --- BOTÕES GERAIS (PRIMARY = AZUL OCTO) --- */
-
+    /* --- BOTÕES GERAIS --- */
     button[kind="primary"] {{
-
         background: linear-gradient(90deg, #3F00FF 0%, #031A89 100%) !important;
-
         color: #FFFFFF !important; 
-
         border: none !important;
-
         padding: 0.6rem 1.2rem;
-
         border-radius: 6px;
-
         font-weight: 600;
-
         transition: all 0.2s ease;
-
     }}
-
     button[kind="primary"]:hover {{
-
         box-shadow: 0 4px 12px rgba(63, 0, 255, 0.3);
-
         transform: translateY(-1px);
-
     }}
 
-
-
-    /* --- BOTÃO SAIR DA SIDEBAR (CORRIGIDO) --- */
-
-    /* Especificidade alta para garantir que pegue só na sidebar */
-
+    /* --- BOTÃO SIDEBAR --- */
     section[data-testid="stSidebar"] button[kind="secondary"] {{
-
         background-color: transparent !important;
-
         border: 1px solid rgba(255,255,255,0.6) !important;
-
         color: #FFFFFF !important;
-
     }}
-
     section[data-testid="stSidebar"] button[kind="secondary"]:hover {{
-
         background-color: #FFFFFF !important;
-
         color: {C_SIDEBAR_NAVY} !important;
-
         border-color: #FFFFFF !important;
-
     }}
+    section[data-testid="stSidebar"] button[kind="secondary"] p {{ color: inherit !important; }}
 
-    /* Garante que o texto dentro do botão acompanhe a cor */
-
-    section[data-testid="stSidebar"] button[kind="secondary"] p {{
-
-        color: inherit !important;
-
-    }}
-
-
-
-    /* --- TELA DE LOGIN --- */
-
+    /* --- LOGIN & MOBILE --- */
     .login-container {{
-
-        max-width: 400px;
-
-        margin: 8vh auto 0 auto;
-
-        background: white;
-
-        border-radius: 12px;
-
-        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-
-        overflow: hidden; 
-
+        max-width: 400px; margin: 8vh auto 0 auto; background: white;
+        border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); overflow: hidden; 
     }}
-
     .login-header {{
-
-        background-color: {C_SIDEBAR_NAVY}; 
-
-        padding: 30px 0;
-
-        text-align: center;
-
-        border-bottom: 4px solid {C_ACCENT_NEON};
-
-        display: flex;
-
-        justify-content: center;
-
-        align-items: center;
-
+        background-color: {C_SIDEBAR_NAVY}; padding: 30px 0; text-align: center;
+        border-bottom: 4px solid {C_ACCENT_NEON}; display: flex; justify-content: center; align-items: center;
     }}
-
-    .login-body {{
-
-        padding: 40px;
-
-        padding-top: 20px;
-
-    }}
-
+    .login-body {{ padding: 40px; padding-top: 20px; }}
     div[data-testid="stForm"] {{ border: none; padding: 0; }}
 
-
-
-    /* --- MOBILE --- */
-
     @media (max-width: 600px) {{
-
-        .login-container {{
-
-            margin-top: 2vh; 
-
-            width: 95%; 
-
-            margin-left: auto; 
-
-            margin-right: auto;
-
-        }}
-
+        .login-container {{ margin-top: 2vh; width: 95%; margin-left: auto; margin-right: auto; }}
     }}
 
-
-
     #MainMenu, footer, header {{visibility: hidden;}}
-
     .block-container {{padding-top: 2rem;}}
-
 </style>
-
 """, unsafe_allow_html=True)
 
 
@@ -1124,57 +1012,63 @@ with tabs[2]:
 
 # ------------------------------------------------------------------------------
 
-if len(tabs) > 3:
-
-    with tabs[3]:
-
-        st.subheader("Configuração da IA")
-
-        try:
-
-            res = supabase.table('clientes').select('config_fluxo, prompt_full').eq('id', c_id).execute()
-
-            if res.data:
-
-                d = res.data[0]
-
-                curr_c = d.get('config_fluxo') or {}
-
-                if isinstance(curr_c, str): curr_c = json.loads(curr_c)
-
+with tabs[3]:
+  st.subheader("Configuração da IA")
+    try:
+        # Usa .maybe_single() se sua versão do supabase-py suportar, senão mantenha a lógica de lista
+        res = supabase.table('clientes').select('config_fluxo, prompt_full').eq('id', c_id).execute()
+        
+        if res.data and len(res.data) > 0:
+            d = res.data[0]
+            
+            # Garante que config_fluxo é um dict, mesmo se vier null ou string do banco
+            curr_c = d.get('config_fluxo')
+            if not curr_c: curr_c = {}
+            elif isinstance(curr_c, str): 
+                try: curr_c = json.loads(curr_c)
+                except: curr_c = {}
+            
+            c_p1, c_p2 = st.columns([2, 1])
+            
+            with c_p1:
+                st.markdown("##### Personalidade")
+                prompt_atual = d.get('prompt_full') or ""
+                new_p = st.text_area("Instruções do Sistema", value=prompt_atual, height=350, help="Descreva como o Otti deve se comportar.")
+            
+            with c_p2:
+                st.markdown("##### Voz e Criatividade")
+                v_atual = curr_c.get('openai_voice', 'alloy')
+                vozes_opts = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
                 
-
-                c_p1, c_p2 = st.columns([2, 1])
-
-                with c_p1:
-
-                    st.markdown("##### Personalidade")
-
-                    new_p = st.text_area("", value=d.get('prompt_full','') or '', height=350)
-
-                with c_p2:
-
-                    st.markdown("##### Voz e Criatividade")
-
-                    v_atual = curr_c.get('openai_voice', 'alloy')
-
-                    nova_voz = st.selectbox("Voz:", ["alloy", "echo", "fable", "onyx", "nova", "shimmer"], index=["alloy", "echo", "fable", "onyx", "nova", "shimmer"].index(v_atual) if v_atual in ["alloy", "echo", "fable", "onyx", "nova", "shimmer"] else 0)
-
-                    nova_temp = st.slider("Temp:", 0.0, 1.0, float(curr_c.get('temperature', 0.5)))
-
+                # Index seguro
+                idx_voz = vozes_opts.index(v_atual) if v_atual in vozes_opts else 0
                 
+                nova_voz = st.selectbox("Voz (Áudio):", vozes_opts, index=idx_voz)
+                nova_temp = st.slider("Criatividade (Temp):", 0.0, 1.0, float(curr_c.get('temperature', 0.5)))
+            
+            st.divider()
+            
+            col_save, _ = st.columns([1,3])
+            with col_save:
+                if st.button("💾 SALVAR CONFIGURAÇÕES", type="primary", use_container_width=True):
+                    try:
+                        curr_c['openai_voice'] = nova_voz
+                        curr_c['temperature'] = nova_temp
+                        
+                        supabase.table('clientes').update({
+                            'prompt_full': new_p, 
+                            'config_fluxo': curr_c
+                        }).eq('id', c_id).execute()
+                        
+                        st.success("Configurações atualizadas com sucesso!")
+                        time.sleep(1.5)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao salvar: {e}")
+        else:
+            st.warning("Não foi possível carregar as configurações deste cliente.")
+            
+    except Exception as e:
+        st.error(f"Erro de conexão com o Banco de Dados: {e}")
 
-                st.markdown("<br>", unsafe_allow_html=True)
-
-                if st.button("SALVAR CONFIGURAÇÕES", type="primary"):
-
-                    curr_c['openai_voice'] = nova_voz
-
-                    curr_c['temperature'] = nova_temp
-
-                    supabase.table('clientes').update({'prompt_full': new_p, 'config_fluxo': curr_c}).eq('id', c_id).execute()
-
-                    st.success("Salvo!"); time.sleep(1); st.rerun()
-
-        except Exception as e: st.error(f"Erro: {e}")
 
