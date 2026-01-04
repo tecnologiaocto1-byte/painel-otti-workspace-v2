@@ -561,7 +561,7 @@ with tabs[2]:
 # ------------------------------------------------------------------------------
 # TAB 4: CÉREBRO (OK)
 # ------------------------------------------------------------------------------
-if perfil == 'admin' and len(tabs) > 3:
+if len(tabs) > 3:
     with tabs[3]:
         st.subheader("Configuração da IA")
         try:
@@ -588,3 +588,4 @@ if perfil == 'admin' and len(tabs) > 3:
                     supabase.table('clientes').update({'prompt_full': new_p, 'config_fluxo': curr_c}).eq('id', c_id).execute()
                     st.success("Salvo!"); time.sleep(1); st.rerun()
         except Exception as e: st.error(f"Erro: {e}")
+
