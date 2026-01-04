@@ -1002,17 +1002,22 @@ with tabs[2]:
 # ------------------------------------------------------------------------------
 
 with tabs[3]:
-  st.subheader("Configuração da IA")
+    st.subheader("Configuração da IA")
+    
+    # Debug: Se a aba continuar vazia, descomente a linha abaixo para ver se o ID existe
+    # st.write(f"Debug ID Cliente: {c_id}")
+
     try:
-        # Usa .maybe_single() se sua versão do supabase-py suportar, senão mantenha a lógica de lista
+        # A busca deve estar alinhada na mesma indentação do st.subheader
         res = supabase.table('clientes').select('config_fluxo, prompt_full').eq('id', c_id).execute()
         
-        if res.data and len(res.data) > 0:
+        if res.data:
             d = res.data[0]
             
-            # Garante que config_fluxo é um dict, mesmo se vier null ou string do banco
+            # Tratamento de segurança para campos vazios
             curr_c = d.get('config_fluxo')
-            if not curr_c: curr_c = {}
+            if not curr_c: 
+                curr_c = {}
             elif isinstance(curr_c, str): 
                 try: curr_c = json.loads(curr_c)
                 except: curr_c = {}
@@ -1026,14 +1031,15 @@ with tabs[3]:
             
             with c_p2:
                 st.markdown("##### Voz e Criatividade")
-                v_atual = curr_c.get('openai_voice', 'alloy')
-                vozes_opts = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
+                # Fallbacks seguros caso a configuração não exista
+                v_atual = curr_c.get('openai_voice', 'alloy') if isinstance(curr_c, dict) else 'alloy'
+                temp_atual = float(curr_c.get('temperature', 0.5)) if isinstance(curr_c, dict) else 0.5
                 
-                # Index seguro
+                vozes_opts = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
                 idx_voz = vozes_opts.index(v_atual) if v_atual in vozes_opts else 0
                 
                 nova_voz = st.selectbox("Voz (Áudio):", vozes_opts, index=idx_voz)
-                nova_temp = st.slider("Criatividade (Temp):", 0.0, 1.0, float(curr_c.get('temperature', 0.5)))
+                nova_temp = st.slider("Criatividade (Temp):", 0.0, 1.0, temp_atual)
             
             st.divider()
             
@@ -1041,6 +1047,9 @@ with tabs[3]:
             with col_save:
                 if st.button("💾 SALVAR CONFIGURAÇÕES", type="primary", use_container_width=True):
                     try:
+                        # Garante que curr_c é um dicionário antes de atualizar
+                        if not isinstance(curr_c, dict): curr_c = {}
+                        
                         curr_c['openai_voice'] = nova_voz
                         curr_c['temperature'] = nova_temp
                         
@@ -1055,10 +1064,11 @@ with tabs[3]:
                     except Exception as e:
                         st.error(f"Erro ao salvar: {e}")
         else:
-            st.warning("Não foi possível carregar as configurações deste cliente.")
+            st.warning(f"Não foi possível carregar as configurações. Verifique se o Cliente ID {c_id} existe na tabela 'clientes'.")
             
     except Exception as e:
         st.error(f"Erro de conexão com o Banco de Dados: {e}")
+
 
 
 
