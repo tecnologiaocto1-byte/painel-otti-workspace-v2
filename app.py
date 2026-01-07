@@ -382,88 +382,153 @@ with tabs[0]:
     except Exception as e: st.error(f"Erro Visual: {e}")
 
 # ------------------------------------------------------------------------------
-# TAB 2: PRODUTOS (COM CONFIGURAÇÃO DE SINAL)
+# TAB 2: PRODUTOS (COM SINAL INDIVIDUAL E EDIÇÃO)
 # ------------------------------------------------------------------------------
 with tabs[1]:
-    # --- BLOCO 1: CONFIGURAÇÃO DE SINAL (GLOBAL) ---
-    st.markdown("### ⚙️ Regras de Venda")
-    
-    # Busca config atual do cliente para ler o sinal
-    try:
-        res_cli = supabase.table('clientes').select('config_fluxo').eq('id', c_id).execute()
-        cfg_prod = res_cli.data[0].get('config_fluxo', {}) if res_cli.data else {}
-        # Garante que é dicionário
-        if isinstance(cfg_prod, str): 
-            try: cfg_prod = json.loads(cfg_prod)
-            except: cfg_prod = {}
-        if cfg_prod is None: cfg_prod = {}
-    except: cfg_prod = {}
-
-    col_sinal_1, col_sinal_2 = st.columns([2, 1])
-    with col_sinal_1:
-        novo_sinal_val = st.number_input(
-            "Valor do Sinal para Reserva (R$)",
-            min_value=0.0,
-            value=float(cfg_prod.get('sinal_minimo_reais', 100.0)),
-            step=10.0,
-            format="%.2f",
-            key="input_sinal_tab_produtos"
-        )
-    with col_sinal_2:
-        st.write("") # Espaçamento para alinhar botão
-        st.write("") 
-        if st.button("💾 Salvar Regra", type="secondary", use_container_width=True):
-            try:
-                cfg_prod['sinal_minimo_reais'] = novo_sinal_val
-                supabase.table('clientes').update({'config_fluxo': cfg_prod}).eq('id', c_id).execute()
-                st.toast("Valor do sinal atualizado!", icon="✅")
-                time.sleep(1)
-            except Exception as e:
-                st.error(f"Erro ao salvar: {e}")
-
-    st.divider()
-
-    # --- BLOCO 2: LISTAGEM DE PRODUTOS ---
+    # Busca produtos no banco
     rp = supabase.table('produtos').select('id, nome, categoria, regras_preco').eq('cliente_id', c_id).order('nome').execute()
+    
+    # Processa os dados para o DataFrame
+    lista_produtos = []
     if rp.data:
-        df_prod = pd.DataFrame(rp.data)
-        def extrair_preco(x):
-            try:
-                if isinstance(x, dict): return x.get('preco_padrao', 0)
-                if isinstance(x, str): return json.loads(x).get('preco_padrao', 0)
-                return 0
-            except: return 0
-        df_prod['Preço (R$)'] = df_prod['regras_preco'].apply(extrair_preco)
-    else: df_prod = pd.DataFrame()
+        for item in rp.data:
+            # Tratamento robusto do JSON de regras
+            regras = item.get('regras_preco', {})
+            if isinstance(regras, str):
+                try: regras = json.loads(regras)
+                except: regras = {}
+            if not isinstance(regras, dict): regras = {}
+            
+            lista_produtos.append({
+                'id': item['id'],
+                'Nome': item['nome'],
+                'Categoria': item['categoria'],
+                'Preço (R$)': float(regras.get('preco_padrao', 0)),
+                'Sinal (R$)': float(regras.get('valor_sinal', 0)), # Novo campo
+                'raw_regras': regras # Guarda para uso interno
+            })
+        df_prod = pd.DataFrame(lista_produtos)
+    else:
+        df_prod = pd.DataFrame()
 
-    c1, c2 = st.columns([2,1])
-    with c1:
+    # Layout: Tabela à esquerda (2), Ações à direita (1)
+    col_table, col_actions = st.columns([2, 1])
+
+    # --- ESQUERDA: TABELA ---
+    with col_table:
         if not df_prod.empty:
-            df_display = df_prod[['nome', 'categoria', 'Preço (R$)']]
-            df_display.columns = ['Nome', 'Categoria', 'Preço (R$)']
-            st.dataframe(df_display, use_container_width=True, hide_index=True)
-        else: st.info("Nenhum produto cadastrado.")
+            # Mostra tabela limpa para o usuário
+            st.dataframe(
+                df_prod[['Nome', 'Categoria', 'Preço (R$)', 'Sinal (R$)']], 
+                use_container_width=True, 
+                hide_index=True
+            )
+        else:
+            st.info("Nenhum produto cadastrado.")
 
-    with c2:
-        with st.form("add"):
-            st.markdown("#### 🆕 Novo Item")
-            n = st.text_input("Nome")
-            c = st.selectbox("Categoria", ["Serviço", "Produto", "Serviço Salão"])
-            p = st.number_input("Preço", min_value=0.0, step=10.0)
-            if st.form_submit_button("Salvar Item", type="primary"):
-                js = {"preco_padrao": p, "duracao_minutos": 60}
-                try:
-                    supabase.table('produtos').insert({"cliente_id": c_id, "nome": n, "categoria": c, "ativo": True, "regras_preco": js}).execute()
-                    st.success("Item salvo!"); time.sleep(1); st.rerun()
-                except Exception as e: st.error(f"Erro: {e}")
+    # --- DIREITA: AÇÕES (NOVO / EDITAR) ---
+    with col_actions:
+        # Cria abas internas para organizar
+        tab_new, tab_edit = st.tabs(["➕ Novo", "✏️ Editar"])
         
-        st.divider()
-        if not df_prod.empty:
-            map_del = {row['nome']: row['id'] for i, row in df_prod.iterrows()}
-            sel_del = st.selectbox("🗑️ Excluir Item", list(map_del.keys()))
-            if st.button("Confirmar Exclusão"):
-                supabase.table('produtos').delete().eq('id', map_del[sel_del]).execute()
-                st.success("Removido!"); time.sleep(1); st.rerun()
+        # --- ABA NOVO ---
+        with tab_new:
+            with st.form("form_add_prod"):
+                st.write("**Cadastrar Novo**")
+                n_new = st.text_input("Nome do Item")
+                c_new = st.selectbox("Categoria", ["Serviço", "Produto", "Serviço Salão"], key="cat_new")
+                
+                c_val1, c_val2 = st.columns(2)
+                with c_val1:
+                    p_new = st.number_input("Preço Total", min_value=0.0, step=10.0, key="price_new")
+                with c_val2:
+                    s_new = st.number_input("Valor Sinal", min_value=0.0, step=10.0, key="signal_new")
+                
+                if st.form_submit_button("Salvar Item", type="primary"):
+                    if not n_new:
+                        st.warning("O nome é obrigatório.")
+                    else:
+                        # Monta o JSON incluindo o sinal
+                        js_rules = {
+                            "preco_padrao": p_new, 
+                            "valor_sinal": s_new,
+                            "duracao_minutos": 60
+                        }
+                        try:
+                            supabase.table('produtos').insert({
+                                "cliente_id": c_id, 
+                                "nome": n_new, 
+                                "categoria": c_new, 
+                                "ativo": True, 
+                                "regras_preco": js_rules
+                            }).execute()
+                            st.success("Criado!"); time.sleep(1); st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro: {e}")
+
+        # --- ABA EDITAR ---
+        with tab_edit:
+            if df_prod.empty:
+                st.warning("Cadastre itens primeiro.")
+            else:
+                # Seletor de qual produto editar
+                map_ids = {row['Nome']: row['id'] for i, row in df_prod.iterrows()}
+                sel_name = st.selectbox("Selecione para editar:", list(map_ids.keys()))
+                sel_id = map_ids[sel_name]
+                
+                # Recupera os dados atuais do item selecionado
+                item_atual = df_prod[df_prod['id'] == sel_id].iloc[0]
+                
+                with st.form("form_edit_prod"):
+                    n_ed = st.text_input("Nome", value=item_atual['Nome'])
+                    
+                    # Tenta achar o index da categoria atual
+                    cats_opts = ["Serviço", "Produto", "Serviço Salão"]
+                    try: idx_cat = cats_opts.index(item_atual['Categoria'])
+                    except: idx_cat = 0
+                    c_ed = st.selectbox("Categoria", cats_opts, index=idx_cat, key="cat_ed")
+                    
+                    c_e1, c_e2 = st.columns(2)
+                    with c_e1:
+                        p_ed = st.number_input("Preço", min_value=0.0, value=float(item_atual['Preço (R$)']), step=10.0, key="p_ed")
+                    with c_e2:
+                        s_ed = st.number_input("Sinal", min_value=0.0, value=float(item_atual['Sinal (R$)']), step=10.0, key="s_ed")
+                    
+                    # Botões de Ação
+                    c_btn1, c_btn2 = st.columns(2)
+                    with c_btn1:
+                        if st.form_submit_button("💾 Salvar"):
+                            js_rules = item_atual['raw_regras']
+                            if not isinstance(js_rules, dict): js_rules = {}
+                            
+                            # Atualiza valores
+                            js_rules['preco_padrao'] = p_ed
+                            js_rules['valor_sinal'] = s_ed
+                            
+                            try:
+                                supabase.table('produtos').update({
+                                    "nome": n_ed,
+                                    "categoria": c_ed,
+                                    "regras_preco": js_rules
+                                }).eq('id', sel_id).execute()
+                                st.success("Atualizado!"); time.sleep(1); st.rerun()
+                            except Exception as e:
+                                st.error(f"Erro: {e}")
+                    
+                    with c_btn2:
+                        # Botão de deletar precisa ser fora do form ou usar um truque, 
+                        # mas dentro do form o submit recarrega. 
+                        # Vamos usar um checkbox de confirmação para segurança.
+                        deletar = st.checkbox("Excluir este item?")
+                        if st.form_submit_button("🗑️ Excluir"):
+                            if deletar:
+                                try:
+                                    supabase.table('produtos').delete().eq('id', sel_id).execute()
+                                    st.success("Excluído!"); time.sleep(1); st.rerun()
+                                except Exception as e:
+                                    st.error(f"Erro: {e}")
+                            else:
+                                st.warning("Marque a caixa acima para confirmar.")
 
 # ------------------------------------------------------------------------------
 # TAB 3: AGENDA
@@ -675,6 +740,7 @@ with tabs[3]:
             st.warning("Erro ao carregar configurações.")
     except Exception as e:
         st.error(f"Erro Cérebro: {e}")
+
 
 
 
