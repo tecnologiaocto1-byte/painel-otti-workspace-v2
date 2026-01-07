@@ -580,35 +580,107 @@ with tabs[3]:
                 new_p = st.text_area("Instruções do Sistema", value=prompt_atual, height=450, help="Descreva como o Otti deve se comportar.")
             
             with c_p2:
-                st.markdown("##### Ajustes Finos")
-                
-                # Controle de Áudio
-                novo_audio = st.toggle("🔊 Respostas em Áudio", value=audio_ativo)
-                
-                if novo_audio:
-                    v_atual = curr_c.get('openai_voice', 'alloy')
-                    if not isinstance(v_atual, str): v_atual = 'alloy'
-                    vozes_opts = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
-                    idx_voz = vozes_opts.index(v_atual) if v_atual in vozes_opts else 0
-                    nova_voz = st.selectbox("Voz:", vozes_opts, index=idx_voz)
-                else:
-                    nova_voz = curr_c.get('openai_voice', 'alloy') # Mantém o que estava salvo
-
-                st.divider()
-                
-                # Horários
-                st.caption("🕒 Horário Atendimento")
-                col_h1, col_h2 = st.columns(2)
-                with col_h1: novo_ini = st.time_input("Início", value=t_ini)
-                with col_h2: novo_fim = st.time_input("Fim", value=t_fim)
-                
-                st.divider()
-
-                # Financeiro e Criatividade
-                novo_sinal = st.number_input("💰 Valor Sinal (R$)", value=sinal_val, step=10.0)
-                nova_temp = st.slider("🧠 Criatividade:", 0.0, 1.0, temp_atual)
+                # --- CÓDIGO NOVO (ORGANIZADO) ---
+            st.header("Configurações")  # Mudamos de "Ajustes Finos" para "Configurações"
             
-            st.divider()
+            # =========================================================
+            # 1. PERSONALIDADE E ÁUDIO (Agrupamos tudo aqui)
+            # =========================================================
+            st.subheader("🔊 Personalidade e Voz")
+            
+            # Toggle de Áudio
+            openai_audio = st.toggle(
+                "Respostas em Áudio", 
+                value=config_fluxo.get('responde_em_audio', False),
+                help="Se ativado, o Otti responderá mensagens de voz enviando áudios também."
+            )
+            
+            # Definição das vozes com explicação (Legenda)
+            # Mapeia o nome técnico (key) para o nome bonito (value)
+            mapa_vozes = {
+                "alloy": "Alloy (Neutro e Versátil)",
+                "echo": "Echo (Masculino e Suave)",
+                "fable": "Fable (Masculino e Narrador)",
+                "onyx": "Onyx (Masculino e Profundo)",
+                "nova": "Nova (Feminino e Energético)",
+                "shimmer": "Shimmer (Feminino e Calmo)"
+            }
+            
+            voz_atual_code = config_fluxo.get('openai_voice', 'alloy')
+            
+            # Selectbox mostrando a descrição amigável
+            voz_display = st.selectbox(
+                "Voz do Assistente",
+                options=list(mapa_vozes.values()),
+                # Encontra o índice da voz atual baseada na descrição
+                index=list(mapa_vozes.keys()).index(voz_atual_code) if voz_atual_code in mapa_vozes else 0
+            )
+            
+            # Converte de volta o nome bonito para o código (ex: "Nova..." -> "nova")
+            # Isso garante que salve certo no JSON depois
+            openai_voice = [k for k, v in mapa_vozes.items() if v == voz_display][0]
+            
+            st.write("") # Espaço visual
+            
+            # Slider de Criatividade (Agora "Tom de Voz")
+            temperature = st.slider(
+                "Tom de Voz (Criatividade)",
+                min_value=0.0,
+                max_value=1.0,
+                value=float(config_fluxo.get('temperature', 0.8)),
+                step=0.1,
+                help="Define o quão criativa ou exata será a IA."
+            )
+            
+            # Legenda explicativa dinâmica
+            if temperature < 0.5:
+                st.info("🤖 **Modo Mais Robótico (0.0 - 0.4):** Respostas curtas, objetivas e factuais. Segue scripts à risca.")
+            else:
+                st.success("✨ **Modo Mais Humano (0.5 - 1.0):** Respostas fluidas, empáticas e conversacionais. Ideal para atendimento ao cliente.")
+            
+            st.divider() # Linha divisória
+            
+            # =========================================================
+            # 2. HORÁRIO DE ATENDIMENTO
+            # =========================================================
+            st.subheader("🕒 Horário de Atendimento")
+            
+            col_h1, col_h2 = st.columns(2)
+            
+            # Gera lista de horários "00:00" até "23:00"
+            lista_horarios = [f"{i:02d}:00" for i in range(24)]
+            
+            # Tenta pegar o index salvo, se der erro usa padrão (09:00 e 18:00)
+            try:
+                idx_inicio = lista_horarios.index(config_fluxo.get('horario_inicio', '09:00'))
+            except:
+                idx_inicio = 9
+            
+            try:
+                idx_fim = lista_horarios.index(config_fluxo.get('horario_fim', '18:00'))
+            except:
+                idx_fim = 18
+            
+            with col_h1:
+                horario_inicio = st.selectbox("Início", options=lista_horarios, index=idx_inicio)
+            
+            with col_h2:
+                horario_fim = st.selectbox("Fim", options=lista_horarios, index=idx_fim)
+            
+            st.divider() # Linha divisória
+            
+            # =========================================================
+            # 3. FINANCEIRO
+            # =========================================================
+            st.subheader("💰 Financeiro")
+            
+            sinal_minimo_reais = st.number_input(
+                "Valor do Sinal para Reserva (R$)",
+                min_value=0.0,
+                value=float(config_fluxo.get('sinal_minimo_reais', 100.0)),
+                step=10.0,
+                format="%.2f"
+            )
             
             col_save, _ = st.columns([1,3])
             with col_save:
@@ -632,3 +704,4 @@ with tabs[3]:
             st.warning("Não foi possível carregar as configurações deste cliente.")
     except Exception as e:
         st.error(f"Erro de conexão com o Banco de Dados: {e}")
+
