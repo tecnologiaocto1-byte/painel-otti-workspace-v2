@@ -10,14 +10,15 @@ import base64
 from datetime import datetime, timedelta, time as dt_time
 
 # ==============================================================================
-# 1. SETUP (CORRIGIDO PARA FORÇAR A SIDEBAR ABERTA)
+# 1. SETUP
 # ==============================================================================
 
+# forcei o initial_sidebar_state="expanded" para tentar manter aberto
 st.set_page_config(
     page_title="Otti Workspace", 
     layout="wide", 
     page_icon="🐙", 
-    initial_sidebar_state="expanded" # <--- O SEGREDO ESTÁ AQUI
+    initial_sidebar_state="expanded" 
 )
 
 # --- CORES OFICIAIS OCTO ---
@@ -44,7 +45,7 @@ def init_connection():
 supabase = init_connection()
 
 # ==============================================================================
-# 3. CSS (CORRIGIDO E SEGURO)
+# 3. CSS (CORRIGIDO)
 # ==============================================================================
 
 st.markdown(f"""
@@ -61,20 +62,18 @@ st.markdown(f"""
     h2, h3, h4 {{ font-family: 'Sora', sans-serif; color: {C_TEXT_DARK} !important; font-weight: 700; }}
     p, label {{ color: {C_TEXT_DARK} !important; }}
 
-    /* --- CORREÇÃO CRÍTICA DAS ABAS (TABS) --- */
-    /* Força o texto das abas a ser escuro, senão some no modo dark do navegador */
+    /* --- CORREÇÃO DAS ABAS (TABS) --- */
     button[data-baseweb="tab"] {{
         color: {C_TEXT_DARK} !important;
         font-family: 'Sora', sans-serif !important;
         font-weight: 600 !important;
     }}
-    /* Aba selecionada ganha destaque */
     button[data-baseweb="tab"][aria-selected="true"] {{
         color: {C_ACCENT_NEON} !important;
         border-color: {C_ACCENT_NEON} !important;
     }}
 
-    /* --- INPUTS LIMPOS --- */
+    /* --- INPUTS --- */
     .stTextInput > div > div > input {{
         background-color: #FFFFFF !important;
         color: #000000 !important;
@@ -92,7 +91,7 @@ st.markdown(f"""
     div[data-baseweb="popover"] {{ background-color: #FFFFFF !important; }}
     div[data-baseweb="option"] {{ color: #000000 !important; }}
 
-    /* --- BOTÕES GERAIS --- */
+    /* --- BOTÕES --- */
     button[kind="primary"] {{
         background: linear-gradient(90deg, #3F00FF 0%, #031A89 100%) !important;
         color: #FFFFFF !important; 
@@ -136,7 +135,8 @@ st.markdown(f"""
         .login-container {{ margin-top: 2vh; width: 95%; margin-left: auto; margin-right: auto; }}
     }}
 
-    #MainMenu, footer, header {{visibility: hidden;}}
+    /* --- AQUI ESTAVA O PROBLEMA: REMOVI O 'HEADER' DA LINHA ABAIXO --- */
+    #MainMenu, footer {{visibility: hidden;}}
     .block-container {{padding-top: 2rem;}}
 </style>
 """, unsafe_allow_html=True)
@@ -176,7 +176,6 @@ def render_login_screen():
             senha = st.text_input("Senha", type="password")            
 
             st.markdown("<br>", unsafe_allow_html=True)         
-            # TYPE="PRIMARY" GARANTE O AZUL DEFINIDO NO CSS
             submitted = st.form_submit_button("ENTRAR", type="primary", use_container_width=True)         
 
             if submitted:
@@ -220,7 +219,6 @@ with st.sidebar:
     st.write(f"Olá, **{user.get('nome_usuario', 'User')}**")
     st.markdown("---")
 
-    # BOTÃO SAIR (Vai pegar o CSS específico da sidebar)
     if st.button("SAIR", type="secondary"): 
         st.session_state['usuario_logado'] = None
         st.rerun()
