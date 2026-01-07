@@ -581,64 +581,64 @@ with tabs[3]:
             
             with c_p2:
                 # --- CÓDIGO NOVO (ORGANIZADO) ---
-            st.header("Configurações")  # Mudamos de "Ajustes Finos" para "Configurações"
-            
-            # =========================================================
-            # 1. PERSONALIDADE E ÁUDIO (Agrupamos tudo aqui)
-            # =========================================================
-            st.subheader("🔊 Personalidade e Voz")
-            
-            # Toggle de Áudio
-            openai_audio = st.toggle(
-                "Respostas em Áudio", 
-                value=config_fluxo.get('responde_em_audio', False),
-                help="Se ativado, o Otti responderá mensagens de voz enviando áudios também."
-            )
-            
-            # Definição das vozes com explicação (Legenda)
-            # Mapeia o nome técnico (key) para o nome bonito (value)
-            mapa_vozes = {
-                "alloy": "Alloy (Neutro e Versátil)",
-                "echo": "Echo (Masculino e Suave)",
-                "fable": "Fable (Masculino e Narrador)",
-                "onyx": "Onyx (Masculino e Profundo)",
-                "nova": "Nova (Feminino e Energético)",
-                "shimmer": "Shimmer (Feminino e Calmo)"
-            }
-            
-            voz_atual_code = config_fluxo.get('openai_voice', 'alloy')
-            
-            # Selectbox mostrando a descrição amigável
-            voz_display = st.selectbox(
-                "Voz do Assistente",
-                options=list(mapa_vozes.values()),
-                # Encontra o índice da voz atual baseada na descrição
-                index=list(mapa_vozes.keys()).index(voz_atual_code) if voz_atual_code in mapa_vozes else 0
-            )
-            
-            # Converte de volta o nome bonito para o código (ex: "Nova..." -> "nova")
-            # Isso garante que salve certo no JSON depois
-            openai_voice = [k for k, v in mapa_vozes.items() if v == voz_display][0]
-            
-            st.write("") # Espaço visual
-            
-            # Slider de Criatividade (Agora "Tom de Voz")
-            temperature = st.slider(
-                "Tom de Voz (Criatividade)",
-                min_value=0.0,
-                max_value=1.0,
-                value=float(config_fluxo.get('temperature', 0.8)),
-                step=0.1,
-                help="Define o quão criativa ou exata será a IA."
-            )
-            
-            # Legenda explicativa dinâmica
-            if temperature < 0.5:
-                st.info("🤖 **Modo Mais Robótico (0.0 - 0.4):** Respostas curtas, objetivas e factuais. Segue scripts à risca.")
-            else:
-                st.success("✨ **Modo Mais Humano (0.5 - 1.0):** Respostas fluidas, empáticas e conversacionais. Ideal para atendimento ao cliente.")
-            
-            st.divider() # Linha divisória
+                st.header("Configurações")  # Mudamos de "Ajustes Finos" para "Configurações"
+                
+                # =========================================================
+                # 1. PERSONALIDADE E ÁUDIO (Agrupamos tudo aqui)
+                # =========================================================
+                st.subheader("🔊 Personalidade e Voz")
+                
+                # Toggle de Áudio
+                openai_audio = st.toggle(
+                    "Respostas em Áudio", 
+                    value=config_fluxo.get('responde_em_audio', False),
+                    help="Se ativado, o Otti responderá mensagens de voz enviando áudios também."
+                )
+                
+                # Definição das vozes com explicação (Legenda)
+                # Mapeia o nome técnico (key) para o nome bonito (value)
+                mapa_vozes = {
+                    "alloy": "Alloy (Neutro e Versátil)",
+                    "echo": "Echo (Masculino e Suave)",
+                    "fable": "Fable (Masculino e Narrador)",
+                    "onyx": "Onyx (Masculino e Profundo)",
+                    "nova": "Nova (Feminino e Energético)",
+                    "shimmer": "Shimmer (Feminino e Calmo)"
+                }
+                
+                voz_atual_code = config_fluxo.get('openai_voice', 'alloy')
+                
+                # Selectbox mostrando a descrição amigável
+                voz_display = st.selectbox(
+                    "Voz do Assistente",
+                    options=list(mapa_vozes.values()),
+                    # Encontra o índice da voz atual baseada na descrição
+                    index=list(mapa_vozes.keys()).index(voz_atual_code) if voz_atual_code in mapa_vozes else 0
+                )
+                
+                # Converte de volta o nome bonito para o código (ex: "Nova..." -> "nova")
+                # Isso garante que salve certo no JSON depois
+                openai_voice = [k for k, v in mapa_vozes.items() if v == voz_display][0]
+                
+                st.write("") # Espaço visual
+                
+                # Slider de Criatividade (Agora "Tom de Voz")
+                temperature = st.slider(
+                    "Tom de Voz (Criatividade)",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=float(config_fluxo.get('temperature', 0.8)),
+                    step=0.1,
+                    help="Define o quão criativa ou exata será a IA."
+                )
+                
+                # Legenda explicativa dinâmica
+                if temperature < 0.5:
+                    st.info("🤖 **Modo Mais Robótico (0.0 - 0.4):** Respostas curtas, objetivas e factuais. Segue scripts à risca.")
+                else:
+                    st.success("✨ **Modo Mais Humano (0.5 - 1.0):** Respostas fluidas, empáticas e conversacionais. Ideal para atendimento ao cliente.")
+                
+                st.divider() # Linha divisória
             
             # =========================================================
             # 2. HORÁRIO DE ATENDIMENTO
@@ -704,4 +704,5 @@ with tabs[3]:
             st.warning("Não foi possível carregar as configurações deste cliente.")
     except Exception as e:
         st.error(f"Erro de conexão com o Banco de Dados: {e}")
+
 
