@@ -50,11 +50,8 @@ SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
 @st.cache_resource
 
 def init_connection():
-
-    if not SUPABASE_URL: return None
-
+    if not SUPABASE_URL: return None  # <--- SE NÃO TIVER URL, RETORNA NONE
     try: return create_client(SUPABASE_URL, SUPABASE_KEY)
-
     except: return None
 
 
@@ -1100,6 +1097,7 @@ with tabs[3]:
     except Exception as e:
         # Mostra o erro técnico exato se explodir
         st.error(f"Erro Crítico ao carregar aba: {e}")
+
 
 
 
