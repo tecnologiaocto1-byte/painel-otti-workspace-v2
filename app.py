@@ -532,19 +532,22 @@ with tabs[2]:
                     except Exception as e: st.error(f"Erro: {e}")
 
 # ------------------------------------------------------------------------------
-# TAB 4: CÉREBRO (AGORA COM CONTROLES COMPLETOS)
+# TAB 4: CÉREBRO (CÓDIGO CORRIGIDO E SEGURO)
 # ------------------------------------------------------------------------------
 with tabs[3]:
     st.subheader("Configuração da IA")
 
     try:
+        # Busca configurações no banco
         res = supabase.table('clientes').select('config_fluxo, prompt_full').eq('id', c_id).execute()
         
         if res.data and len(res.data) > 0:
             d = res.data[0]
             
-            # --- TRATAMENTO SEGURO DE DADOS ---
+            # --- 1. CARREGAR DADOS DE FORMA SEGURA (VARIÁVEL curr_c) ---
             curr_c = d.get('config_fluxo')
+            
+            # Garante que curr_c seja um dicionário válido
             if curr_c is None: curr_c = {}
             elif isinstance(curr_c, str):
                 try: curr_c = json.loads(curr_c)
@@ -553,50 +556,29 @@ with tabs[3]:
 
             prompt_atual = d.get('prompt_full') or ""
             
-            # Temperatura (Vírgula vs Ponto)
-            raw_temp = curr_c.get('temperature', 0.5)
-            try:
-                if isinstance(raw_temp, str): raw_temp = raw_temp.replace(',', '.')
-                temp_atual = float(raw_temp)
-            except: temp_atual = 0.5
-
-            # Novos Campos (Com defaults seguros)
-            audio_ativo = bool(curr_c.get('audio_ativo', True))
-            
-            # Horários (Padrão 09:00 - 18:00)
-            h_ini_str = curr_c.get('horario_inicio', "09:00")
-            h_fim_str = curr_c.get('horario_fim', "18:00")
-            try: t_ini = datetime.strptime(h_ini_str, "%H:%M").time()
-            except: t_ini = dt_time(9,0)
-            try: t_fim = datetime.strptime(h_fim_str, "%H:%M").time()
-            except: t_fim = dt_time(18,0)
-
-            # Sinal
-            sinal_val = float(curr_c.get('sinal_minimo_reais', 0.0))
-            
+            # Divide a tela em duas colunas
             c_p1, c_p2 = st.columns([2, 1])
+            
+            # --- COLUNA DA ESQUERDA: PROMPT ---
             with c_p1:
                 st.markdown("##### Personalidade & Regras")
-                new_p = st.text_area("Instruções do Sistema", value=prompt_atual, height=450, help="Descreva como o Otti deve se comportar.")
+                new_p = st.text_area("Instruções do Sistema", value=prompt_atual, height=600, help="Descreva como o Otti deve se comportar.")
             
+            # --- COLUNA DA DIREITA: CONFIGURAÇÕES VISUAIS ---
             with c_p2:
-                # --- CÓDIGO NOVO (ORGANIZADO) ---
-                st.header("Configurações")  # Mudamos de "Ajustes Finos" para "Configurações"
+                st.header("Configurações") 
                 
-                # =========================================================
-                # 1. PERSONALIDADE E ÁUDIO (Agrupamos tudo aqui)
-                # =========================================================
+                # GRUPO 1: PERSONALIDADE E ÁUDIO
                 st.subheader("🔊 Personalidade e Voz")
                 
-                # Toggle de Áudio
+                # Toggle de Áudio (Lê de curr_c, NÃO de config_fluxo)
                 openai_audio = st.toggle(
                     "Respostas em Áudio", 
-                    value=config_fluxo.get('responde_em_audio', False),
+                    value=bool(curr_c.get('responde_em_audio', False)),
                     help="Se ativado, o Otti responderá mensagens de voz enviando áudios também."
                 )
                 
-                # Definição das vozes com explicação (Legenda)
-                # Mapeia o nome técnico (key) para o nome bonito (value)
+                # Mapa de Vozes
                 mapa_vozes = {
                     "alloy": "Alloy (Neutro e Versátil)",
                     "echo": "Echo (Masculino e Suave)",
@@ -606,103 +588,102 @@ with tabs[3]:
                     "shimmer": "Shimmer (Feminino e Calmo)"
                 }
                 
-                voz_atual_code = config_fluxo.get('openai_voice', 'alloy')
+                # Recupera a voz atual ou usa 'alloy' como padrão
+                voz_atual_code = curr_c.get('openai_voice', 'alloy')
                 
-                # Selectbox mostrando a descrição amigável
+                # Selectbox visual
                 voz_display = st.selectbox(
                     "Voz do Assistente",
                     options=list(mapa_vozes.values()),
-                    # Encontra o índice da voz atual baseada na descrição
                     index=list(mapa_vozes.keys()).index(voz_atual_code) if voz_atual_code in mapa_vozes else 0
                 )
                 
-                # Converte de volta o nome bonito para o código (ex: "Nova..." -> "nova")
-                # Isso garante que salve certo no JSON depois
+                # Converte o visual de volta para o código para salvar
                 openai_voice = [k for k, v in mapa_vozes.items() if v == voz_display][0]
                 
                 st.write("") # Espaço visual
                 
-                # Slider de Criatividade (Agora "Tom de Voz")
+                # Slider de Criatividade (Temperature)
+                temp_val = float(curr_c.get('temperature', 0.8))
                 temperature = st.slider(
                     "Tom de Voz (Criatividade)",
                     min_value=0.0,
                     max_value=1.0,
-                    value=float(config_fluxo.get('temperature', 0.8)),
+                    value=temp_val,
                     step=0.1,
                     help="Define o quão criativa ou exata será a IA."
                 )
                 
-                # Legenda explicativa dinâmica
+                # Legenda explicativa
                 if temperature < 0.5:
-                    st.info("🤖 **Modo Mais Robótico (0.0 - 0.4):** Respostas curtas, objetivas e factuais. Segue scripts à risca.")
+                    st.info("🤖 **Modo Robótico:** Respostas curtas e factuais.")
                 else:
-                    st.success("✨ **Modo Mais Humano (0.5 - 1.0):** Respostas fluidas, empáticas e conversacionais. Ideal para atendimento ao cliente.")
+                    st.success("✨ **Modo Humano:** Respostas fluidas e empáticas.")
                 
-                st.divider() # Linha divisória
-            
-            # =========================================================
-            # 2. HORÁRIO DE ATENDIMENTO
-            # =========================================================
-            st.subheader("🕒 Horário de Atendimento")
-            
-            col_h1, col_h2 = st.columns(2)
-            
-            # Gera lista de horários "00:00" até "23:00"
-            lista_horarios = [f"{i:02d}:00" for i in range(24)]
-            
-            # Tenta pegar o index salvo, se der erro usa padrão (09:00 e 18:00)
-            try:
-                idx_inicio = lista_horarios.index(config_fluxo.get('horario_inicio', '09:00'))
-            except:
-                idx_inicio = 9
-            
-            try:
-                idx_fim = lista_horarios.index(config_fluxo.get('horario_fim', '18:00'))
-            except:
-                idx_fim = 18
-            
-            with col_h1:
-                horario_inicio = st.selectbox("Início", options=lista_horarios, index=idx_inicio)
-            
-            with col_h2:
-                horario_fim = st.selectbox("Fim", options=lista_horarios, index=idx_fim)
-            
-            st.divider() # Linha divisória
-            
-            # =========================================================
-            # 3. FINANCEIRO
-            # =========================================================
-            st.subheader("💰 Financeiro")
-            
-            sinal_minimo_reais = st.number_input(
-                "Valor do Sinal para Reserva (R$)",
-                min_value=0.0,
-                value=float(config_fluxo.get('sinal_minimo_reais', 100.0)),
-                step=10.0,
-                format="%.2f"
-            )
-            
-            col_save, _ = st.columns([1,3])
-            with col_save:
-                if st.button("💾 SALVAR CONFIGURAÇÕES", type="primary", use_container_width=True):
+                st.divider()
+
+                # GRUPO 2: HORÁRIO DE ATENDIMENTO
+                st.subheader("🕒 Horário de Atendimento")
+                
+                lista_horarios = [f"{i:02d}:00" for i in range(24)]
+                
+                # Tenta pegar index salvo ou usa padrão
+                try: idx_inicio = lista_horarios.index(curr_c.get('horario_inicio', '09:00'))
+                except: idx_inicio = 9
+                
+                try: idx_fim = lista_horarios.index(curr_c.get('horario_fim', '18:00'))
+                except: idx_fim = 18
+                
+                ch1, ch2 = st.columns(2)
+                with ch1:
+                    h_inicio_sel = st.selectbox("Início", options=lista_horarios, index=idx_inicio)
+                with ch2:
+                    h_fim_sel = st.selectbox("Fim", options=lista_horarios, index=idx_fim)
+                
+                st.divider()
+
+                # GRUPO 3: FINANCEIRO
+                st.subheader("💰 Financeiro")
+                
+                sinal_minimo_reais = st.number_input(
+                    "Valor do Sinal (R$)",
+                    min_value=0.0,
+                    value=float(curr_c.get('sinal_minimo_reais', 100.0)),
+                    step=10.0,
+                    format="%.2f"
+                )
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                # BOTÃO SALVAR
+                if st.button("💾 SALVAR TUDO", type="primary", use_container_width=True):
                     try:
-                        # Atualiza Dicionário
-                        curr_c['openai_voice'] = nova_voz
-                        curr_c['temperature'] = nova_temp
-                        curr_c['audio_ativo'] = novo_audio
-                        curr_c['horario_inicio'] = novo_ini.strftime("%H:%M")
-                        curr_c['horario_fim'] = novo_fim.strftime("%H:%M")
-                        curr_c['sinal_minimo_reais'] = novo_sinal
+                        # Atualiza o dicionário curr_c com os valores dos widgets
+                        curr_c['openai_voice'] = openai_voice
+                        curr_c['temperature'] = temperature
+                        curr_c['responde_em_audio'] = openai_audio
+                        curr_c['horario_inicio'] = h_inicio_sel
+                        curr_c['horario_fim'] = h_fim_sel
+                        curr_c['sinal_minimo_reais'] = sinal_minimo
                         
-                        supabase.table('clientes').update({'prompt_full': new_p, 'config_fluxo': curr_c}).eq('id', c_id).execute()
-                        st.success("Configurações atualizadas com sucesso!")
+                        # Envia para o Supabase
+                        supabase.table('clientes').update({
+                            'prompt_full': new_p, 
+                            'config_fluxo': curr_c
+                        }).eq('id', c_id).execute()
+                        
+                        st.success("Configurações atualizadas!")
                         time.sleep(1.5)
                         st.rerun()
                     except Exception as e:
                         st.error(f"Erro ao salvar: {e}")
+
         else:
             st.warning("Não foi possível carregar as configurações deste cliente.")
+            
     except Exception as e:
-        st.error(f"Erro de conexão com o Banco de Dados: {e}")
+        # Se der erro, mostra o traceback detalhado para facilitar
+        st.error(f"Erro no módulo Cérebro: {e}")
+
 
 
