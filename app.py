@@ -45,7 +45,7 @@ def init_connection():
 supabase = init_connection()
 
 # ==============================================================================
-# 3. CSS (CORRIGIDO)
+# 3. CSS (CORRIGIDO E SEGURO)
 # ==============================================================================
 
 st.markdown(f"""
@@ -137,7 +137,7 @@ st.markdown(f"""
         .login-container {{ margin-top: 2vh; width: 95%; margin-left: auto; margin-right: auto; }}
     }}
 
-    /* --- REMOVENDO A FAIXA BRANCA SUPERIOR --- */
+    /* --- HEADER E CONTAINER --- */
     #MainMenu, footer {{visibility: hidden;}}
     header[data-testid="stHeader"] {{ background: transparent !important; }}
     .block-container {{padding-top: 0rem !important; padding-bottom: 2rem;}}
@@ -266,12 +266,22 @@ with c2:
 
 st.divider()
 
-tot = c_data.get('total_mensagens', 0)
-sav = round((tot * 1.5) / 60, 1)
-rev = float(c_data.get('receita_total', 0) or 0)
+# --- CÁLCULO DE KPIS (ATUALIZADO) ---
+# Salário Mínimo base 2024/2025 (~R$ 1.518,00)
+# Custo Hora = 1518 / (22 dias * 8 horas) = ~8.625
+SALARIO_MINIMO = 1518.00
+HORAS_MENSAIS = 22 * 8
+CUSTO_HORA = SALARIO_MINIMO / HORAS_MENSAIS
+
+tot_msgs = c_data.get('total_mensagens', 0)
+horas_economizadas = round((tot_msgs * 1.5) / 60, 1) # 1.5 min por mensagem
+valor_economia = horas_economizadas * CUSTO_HORA
+
+receita_direta = float(c_data.get('receita_total', 0) or 0)
+
 k1, k2, k3, k4 = st.columns(4)
-k1.metric("Receita Total", f"R$ {rev:,.2f}")
-k2.metric("Economia Tempo", f"{sav}h")
+k1.metric("Receita Direta", f"R$ {receita_direta:,.2f}")
+k2.metric("Economia Estimada", f"R$ {valor_economia:,.2f}", help=f"Baseado em {horas_economizadas}h salvas (Custo hora: R$ {CUSTO_HORA:.2f})")
 k3.metric("Atendimentos", c_data.get('total_atendimentos', 0))
 k4.metric("Status Atual", "Online 🟢" if active else "Offline 🔴")
 st.markdown("<br>", unsafe_allow_html=True)
@@ -279,7 +289,7 @@ st.markdown("<br>", unsafe_allow_html=True)
 tabs = st.tabs(["📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
 
 # ------------------------------------------------------------------------------
-# TAB 1: ANALYTICS
+# TAB 1: ANALYTICS (COM GRÁFICO DE VOLUME)
 # ------------------------------------------------------------------------------
 with tabs[0]:
     try:
@@ -322,6 +332,7 @@ with tabs[0]:
 
             st.markdown("<br>", unsafe_allow_html=True)
 
+            # --- LINHA 1 DE GRÁFICOS (RECEITA E VOLUME) ---
             c_g1, c_g2 = st.columns(2)
             with c_g1:
                 st.markdown("##### 📈 Receita Diária")
@@ -334,13 +345,14 @@ with tabs[0]:
                 else: st.info("Sem dados.")
 
             with c_g2:
-                st.markdown("##### 🍕 Share de Produtos")
-                df_top = df_filt.groupby('p')['v'].sum().reset_index()
-                if not df_top.empty:
-                    fig2 = px.pie(df_top, values='v', names='p', hole=0.5, color_discrete_sequence=px.colors.sequential.Bluyl)
-                    fig2.update_traces(textinfo='percent+label', textposition='inside')
-                    fig2.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': C_TEXT_DARK}, showlegend=False, margin=dict(l=0, r=0, t=20, b=20))
-                    st.plotly_chart(fig2, use_container_width=True)
+                st.markdown("##### 📊 Volume de Atendimentos")
+                # Contagem de linhas por data
+                df_vol = df_filt.groupby('dt').size().reset_index(name='qtd')
+                if not df_vol.empty:
+                    fig_vol = px.bar(df_vol, x='dt', y='qtd', text='qtd')
+                    fig_vol.update_traces(marker_color=C_SIDEBAR_NAVY, textposition='outside')
+                    fig_vol.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': C_TEXT_DARK}, xaxis=dict(showgrid=False, title=None), yaxis=dict(showgrid=False, showticklabels=False, title=None), margin=dict(l=0, r=0, t=20, b=20))
+                    st.plotly_chart(fig_vol, use_container_width=True)
                 else: st.info("Sem dados.")
 
             st.divider()
@@ -520,7 +532,7 @@ with tabs[2]:
                     except Exception as e: st.error(f"Erro: {e}")
 
 # ------------------------------------------------------------------------------
-# TAB 4: CÉREBRO
+# TAB 4: CÉREBRO (AGORA COM CONTROLES COMPLETOS)
 # ------------------------------------------------------------------------------
 with tabs[3]:
     st.subheader("Configuração da IA")
@@ -531,6 +543,7 @@ with tabs[3]:
         if res.data and len(res.data) > 0:
             d = res.data[0]
             
+            # --- TRATAMENTO SEGURO DE DADOS ---
             curr_c = d.get('config_fluxo')
             if curr_c is None: curr_c = {}
             elif isinstance(curr_c, str):
@@ -540,27 +553,60 @@ with tabs[3]:
 
             prompt_atual = d.get('prompt_full') or ""
             
+            # Temperatura (Vírgula vs Ponto)
             raw_temp = curr_c.get('temperature', 0.5)
             try:
                 if isinstance(raw_temp, str): raw_temp = raw_temp.replace(',', '.')
                 temp_atual = float(raw_temp)
             except: temp_atual = 0.5
+
+            # Novos Campos (Com defaults seguros)
+            audio_ativo = bool(curr_c.get('audio_ativo', True))
+            
+            # Horários (Padrão 09:00 - 18:00)
+            h_ini_str = curr_c.get('horario_inicio', "09:00")
+            h_fim_str = curr_c.get('horario_fim', "18:00")
+            try: t_ini = datetime.strptime(h_ini_str, "%H:%M").time()
+            except: t_ini = dt_time(9,0)
+            try: t_fim = datetime.strptime(h_fim_str, "%H:%M").time()
+            except: t_fim = dt_time(18,0)
+
+            # Sinal
+            sinal_val = float(curr_c.get('sinal_minimo_reais', 0.0))
             
             c_p1, c_p2 = st.columns([2, 1])
             with c_p1:
-                st.markdown("##### Personalidade")
-                new_p = st.text_area("Instruções do Sistema", value=prompt_atual, height=350, help="Descreva como o Otti deve se comportar.")
+                st.markdown("##### Personalidade & Regras")
+                new_p = st.text_area("Instruções do Sistema", value=prompt_atual, height=450, help="Descreva como o Otti deve se comportar.")
             
             with c_p2:
-                st.markdown("##### Voz e Criatividade")
-                v_atual = curr_c.get('openai_voice', 'alloy')
-                if not isinstance(v_atual, str): v_atual = 'alloy'
-
-                vozes_opts = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
-                idx_voz = vozes_opts.index(v_atual) if v_atual in vozes_opts else 0
+                st.markdown("##### Ajustes Finos")
                 
-                nova_voz = st.selectbox("Voz (Áudio):", vozes_opts, index=idx_voz)
-                nova_temp = st.slider("Criatividade (Temp):", 0.0, 1.0, temp_atual)
+                # Controle de Áudio
+                novo_audio = st.toggle("🔊 Respostas em Áudio", value=audio_ativo)
+                
+                if novo_audio:
+                    v_atual = curr_c.get('openai_voice', 'alloy')
+                    if not isinstance(v_atual, str): v_atual = 'alloy'
+                    vozes_opts = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
+                    idx_voz = vozes_opts.index(v_atual) if v_atual in vozes_opts else 0
+                    nova_voz = st.selectbox("Voz:", vozes_opts, index=idx_voz)
+                else:
+                    nova_voz = curr_c.get('openai_voice', 'alloy') # Mantém o que estava salvo
+
+                st.divider()
+                
+                # Horários
+                st.caption("🕒 Horário Atendimento")
+                col_h1, col_h2 = st.columns(2)
+                with col_h1: novo_ini = st.time_input("Início", value=t_ini)
+                with col_h2: novo_fim = st.time_input("Fim", value=t_fim)
+                
+                st.divider()
+
+                # Financeiro e Criatividade
+                novo_sinal = st.number_input("💰 Valor Sinal (R$)", value=sinal_val, step=10.0)
+                nova_temp = st.slider("🧠 Criatividade:", 0.0, 1.0, temp_atual)
             
             st.divider()
             
@@ -568,8 +614,14 @@ with tabs[3]:
             with col_save:
                 if st.button("💾 SALVAR CONFIGURAÇÕES", type="primary", use_container_width=True):
                     try:
+                        # Atualiza Dicionário
                         curr_c['openai_voice'] = nova_voz
-                        curr_c['temperature'] = nova_temp 
+                        curr_c['temperature'] = nova_temp
+                        curr_c['audio_ativo'] = novo_audio
+                        curr_c['horario_inicio'] = novo_ini.strftime("%H:%M")
+                        curr_c['horario_fim'] = novo_fim.strftime("%H:%M")
+                        curr_c['sinal_minimo_reais'] = novo_sinal
+                        
                         supabase.table('clientes').update({'prompt_full': new_p, 'config_fluxo': curr_c}).eq('id', c_id).execute()
                         st.success("Configurações atualizadas com sucesso!")
                         time.sleep(1.5)
@@ -580,4 +632,3 @@ with tabs[3]:
             st.warning("Não foi possível carregar as configurações deste cliente.")
     except Exception as e:
         st.error(f"Erro de conexão com o Banco de Dados: {e}")
-
