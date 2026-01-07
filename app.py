@@ -10,10 +10,15 @@ import base64
 from datetime import datetime, timedelta, time as dt_time
 
 # ==============================================================================
-# 1. SETUP
+# 1. SETUP (CORRIGIDO PARA FORÇAR A SIDEBAR ABERTA)
 # ==============================================================================
 
-st.set_page_config(page_title="Otti Workspace", layout="wide", page_icon="🐙")
+st.set_page_config(
+    page_title="Otti Workspace", 
+    layout="wide", 
+    page_icon="🐙", 
+    initial_sidebar_state="expanded" # <--- O SEGREDO ESTÁ AQUI
+)
 
 # --- CORES OFICIAIS OCTO ---
 C_BG_OCTO_LIGHT = "#E2E8F0"
