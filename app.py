@@ -91,18 +91,20 @@ st.markdown(f"""
     div[data-baseweb="popover"] {{ background-color: #FFFFFF !important; }}
     div[data-baseweb="option"] {{ color: #000000 !important; }}
 
-    /* --- BOTÕES --- */
+    /* --- BOTÕES (AGORA CLAROS) --- */
     button[kind="primary"] {{
-        background: linear-gradient(90deg, #3F00FF 0%, #031A89 100%) !important;
-        color: #FFFFFF !important; 
-        border: none !important;
+        background-color: #FFFFFF !important;
+        color: {C_ACCENT_NEON} !important;
+        border: 2px solid {C_ACCENT_NEON} !important;
         padding: 0.6rem 1.2rem;
-        border-radius: 6px;
-        font-weight: 600;
+        border-radius: 8px;
+        font-weight: 700;
         transition: all 0.2s ease;
     }}
     button[kind="primary"]:hover {{
-        box-shadow: 0 4px 12px rgba(63, 0, 255, 0.3);
+        background-color: {C_ACCENT_NEON} !important;
+        color: #FFFFFF !important;
+        box-shadow: 0 4px 12px rgba(63, 0, 255, 0.2);
         transform: translateY(-1px);
     }}
 
@@ -135,9 +137,10 @@ st.markdown(f"""
         .login-container {{ margin-top: 2vh; width: 95%; margin-left: auto; margin-right: auto; }}
     }}
 
-    /* --- AQUI ESTAVA O PROBLEMA: REMOVI O 'HEADER' DA LINHA ABAIXO --- */
+    /* --- REMOVENDO A FAIXA BRANCA SUPERIOR --- */
     #MainMenu, footer {{visibility: hidden;}}
-    .block-container {{padding-top: 2rem;}}
+    header[data-testid="stHeader"] {{ background: transparent !important; }}
+    .block-container {{padding-top: 0rem !important; padding-bottom: 2rem;}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -577,3 +580,4 @@ with tabs[3]:
             st.warning("Não foi possível carregar as configurações deste cliente.")
     except Exception as e:
         st.error(f"Erro de conexão com o Banco de Dados: {e}")
+
