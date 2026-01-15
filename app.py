@@ -377,458 +377,247 @@ else:
     titulos_abas = ["📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"]
     tabs = st.tabs(titulos_abas)
 
-# ------------------------------------------------------------------------------
-# TAB 1: ANALYTICS (COM GRÁFICO DE VOLUME)
-# ------------------------------------------------------------------------------
-with tabs[0]:
-    try:
-        r_s = supabase.table('agendamentos_salao').select('created_at, valor_sinal_registrado, status, produto_salao_id').eq('cliente_id', c_id).execute().data
-        r_p = supabase.table('agendamentos').select('created_at, valor_sinal_registrado, status, servico_id').eq('cliente_id', c_id).execute().data
-        r_pr = supabase.table('produtos').select('id, nome').eq('cliente_id', c_id).execute().data
-        map_pr = {p['id']: p['nome'] for p in r_pr} if r_pr else {}
-        
-        lista = []
-        if r_s:
-            for i in r_s: lista.append({'dt': i['created_at'], 'v': i.get('valor_sinal_registrado',0), 'st': i['status'], 'p': map_pr.get(i.get('produto_salao_id'), 'Salão')})
-        if r_p:
-            for i in r_p: lista.append({'dt': i['created_at'], 'v': i.get('valor_sinal_registrado',0), 'st': i['status'], 'p': map_pr.get(i.get('servico_id'), 'Serviço')})
-        
-        if lista:
-            df = pd.DataFrame(lista)
-            df['dt_full'] = pd.to_datetime(df['dt'], format='mixed')
-            df['dt'] = df['dt_full'].dt.date
-            df = df[df['st'] != 'Cancelado']
-            
-            min_date = df['dt'].min()
-            max_date = df['dt'].max()
-            if pd.isnull(min_date): min_date = datetime.now().date()
-            if pd.isnull(max_date): max_date = datetime.now().date()
-            
-            with st.container(border=True):
-                cf1, cf2 = st.columns(2)
-                with cf1:
-                    d_select = st.date_input("📅 Período", value=(min_date, max_date), min_value=min_date, max_value=max_date)
-                with cf2:
-                    prods_un = df['p'].unique()
-                    prod_sel = st.multiselect("📦 Filtrar Produtos", prods_un, default=prods_un)
-
-            df_filt = df.copy()
-            if isinstance(d_select, tuple) and len(d_select) == 2:
-                start_d, end_d = d_select
-                df_filt = df_filt[(df_filt['dt'] >= start_d) & (df_filt['dt'] <= end_d)]
-            if prod_sel:
-                df_filt = df_filt[df_filt['p'].isin(prod_sel)]
-
-            st.markdown("<br>", unsafe_allow_html=True)
-
-            # --- LINHA 1 DE GRÁFICOS (RECEITA E VOLUME) ---
-            c_g1, c_g2 = st.columns(2)
-            with c_g1:
-                st.markdown("##### 📈 Receita Diária")
-                df_g = df_filt.groupby('dt')['v'].sum().reset_index()
-                if not df_g.empty:
-                    fig = px.line(df_g, x='dt', y='v', text='v')
-                    fig.update_traces(line_shape='spline', line_color=C_ACCENT_NEON, line_width=4, textposition="top center", texttemplate='R$%{text:.0f}', mode='lines+text')
-                    fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': C_TEXT_DARK}, xaxis=dict(showgrid=False, title=None), yaxis=dict(showgrid=False, showticklabels=False, title=None), margin=dict(l=0, r=0, t=20, b=20))
-                    st.plotly_chart(fig, use_container_width=True)
-                else: st.info("Sem dados.")
-
-            with c_g2:
-                st.markdown("##### 📊 Volume de Atendimentos")
-                # Contagem de linhas por data
-                df_vol = df_filt.groupby('dt').size().reset_index(name='qtd')
-                if not df_vol.empty:
-                    fig_vol = px.bar(df_vol, x='dt', y='qtd', text='qtd')
-                    fig_vol.update_traces(marker_color=C_SIDEBAR_NAVY, textposition='outside')
-                    fig_vol.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': C_TEXT_DARK}, xaxis=dict(showgrid=False, title=None), yaxis=dict(showgrid=False, showticklabels=False, title=None), margin=dict(l=0, r=0, t=20, b=20))
-                    st.plotly_chart(fig_vol, use_container_width=True)
-                else: st.info("Sem dados.")
-
-            st.divider()
-            
-            st.markdown("#### 🚀 Tendências")
-            c_t1, c_t2 = st.columns(2)
-            with c_t1:
-                st.markdown("##### Tendência de Faturamento (Semanal)")
-                try:
-                    df_trend = df_filt.copy()
-                    df_trend['semana'] = pd.to_datetime(df_trend['dt']).dt.strftime('%Y-Semana %U')
-                    df_w = df_trend.groupby('semana')['v'].sum().reset_index()
-                    fig3 = px.bar(df_w, x='semana', y='v')
-                    fig3.update_traces(marker_color=C_SIDEBAR_NAVY, marker_line_width=0)
-                    fig3.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': C_TEXT_DARK}, xaxis=dict(showgrid=False, title=None), yaxis=dict(showgrid=True, gridcolor='#E2E8F0', title=None), margin=dict(l=0, r=0, t=20, b=20))
-                    st.plotly_chart(fig3, use_container_width=True)
-                except: st.info("Dados insuficientes.")
-            with c_t2:
-                st.markdown("##### Tendência de Produtos (Evolução)")
-                try:
-                    df_area = df_filt.groupby(['dt', 'p'])['v'].sum().reset_index()
-                    fig4 = px.area(df_area, x='dt', y='v', color='p')
-                    fig4.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': C_TEXT_DARK}, xaxis=dict(showgrid=False, title=None), yaxis=dict(showgrid=True, gridcolor='#E2E8F0', showticklabels=False, title=None), margin=dict(l=0, r=0, t=20, b=20), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
-                    st.plotly_chart(fig4, use_container_width=True)
-                except: st.info("Sem dados.")
-        else: st.info("Sem dados.")
-    except Exception as e: st.error(f"Erro Visual: {e}")
-
-# ------------------------------------------------------------------------------
-# TAB 2: PRODUTOS (COM SINAL INDIVIDUAL E EDIÇÃO)
-# ------------------------------------------------------------------------------
-with tabs[1]:
-    # Busca produtos no banco
-    rp = supabase.table('produtos').select('id, nome, categoria, regras_preco').eq('cliente_id', c_id).order('nome').execute()
-    
-    # Processa os dados para o DataFrame
-    lista_produtos = []
-    if rp.data:
-        for item in rp.data:
-            # Tratamento robusto do JSON de regras
-            regras = item.get('regras_preco', {})
-            if isinstance(regras, str):
-                try: regras = json.loads(regras)
-                except: regras = {}
-            if not isinstance(regras, dict): regras = {}
-            
-            lista_produtos.append({
-                'id': item['id'],
-                'Nome': item['nome'],
-                'Categoria': item['categoria'],
-                'Preço (R$)': float(regras.get('preco_padrao', 0)),
-                'Sinal (R$)': float(regras.get('valor_sinal', 0)), # Novo campo
-                'raw_regras': regras # Guarda para uso interno
-            })
-        df_prod = pd.DataFrame(lista_produtos)
-    else:
-        df_prod = pd.DataFrame()
-
-    # Layout: Tabela à esquerda (2), Ações à direita (1)
-    col_table, col_actions = st.columns([2, 1])
-
-    # --- ESQUERDA: TABELA ---
-    with col_table:
-        if not df_prod.empty:
-            # Mostra tabela limpa para o usuário
-            st.dataframe(
-                df_prod[['Nome', 'Categoria', 'Preço (R$)', 'Sinal (R$)']], 
-                use_container_width=True, 
-                hide_index=True
-            )
-        else:
-            st.info("Nenhum produto cadastrado.")
-
-    # --- DIREITA: AÇÕES (NOVO / EDITAR) ---
-    with col_actions:
-        # Cria abas internas para organizar
-        tab_new, tab_edit = st.tabs(["➕ Novo", "✏️ Editar"])
-        
-        # --- ABA NOVO ---
-        with tab_new:
-            with st.form("form_add_prod"):
-                st.write("**Cadastrar Novo**")
-                n_new = st.text_input("Nome do Item")
-                c_new = st.selectbox("Categoria", ["Serviço", "Produto", "Serviço Salão"], key="cat_new")
-                
-                c_val1, c_val2 = st.columns(2)
-                with c_val1:
-                    p_new = st.number_input("Preço Total", min_value=0.0, step=10.0, key="price_new")
-                with c_val2:
-                    s_new = st.number_input("Valor Sinal", min_value=0.0, step=10.0, key="signal_new")
-                
-                if st.form_submit_button("Salvar Item", type="primary"):
-                    if not n_new:
-                        st.warning("O nome é obrigatório.")
-                    else:
-                        # Monta o JSON incluindo o sinal
-                        js_rules = {
-                            "preco_padrao": p_new, 
-                            "valor_sinal": s_new,
-                            "duracao_minutos": 60
-                        }
-                        try:
-                            supabase.table('produtos').insert({
-                                "cliente_id": c_id, 
-                                "nome": n_new, 
-                                "categoria": c_new, 
-                                "ativo": True, 
-                                "regras_preco": js_rules
-                            }).execute()
-                            st.success("Criado!"); time.sleep(1); st.rerun()
-                        except Exception as e:
-                            st.error(f"Erro: {e}")
-
-        # --- ABA EDITAR ---
-        with tab_edit:
-            if df_prod.empty:
-                st.warning("Cadastre itens primeiro.")
-            else:
-                # Seletor de qual produto editar
-                map_ids = {row['Nome']: row['id'] for i, row in df_prod.iterrows()}
-                sel_name = st.selectbox("Selecione para editar:", list(map_ids.keys()))
-                sel_id = map_ids[sel_name]
-                
-                # Recupera os dados atuais do item selecionado
-                item_atual = df_prod[df_prod['id'] == sel_id].iloc[0]
-                
-                with st.form("form_edit_prod"):
-                    n_ed = st.text_input("Nome", value=item_atual['Nome'])
-                    
-                    # Tenta achar o index da categoria atual
-                    cats_opts = ["Serviço", "Produto", "Serviço Salão"]
-                    try: idx_cat = cats_opts.index(item_atual['Categoria'])
-                    except: idx_cat = 0
-                    c_ed = st.selectbox("Categoria", cats_opts, index=idx_cat, key="cat_ed")
-                    
-                    c_e1, c_e2 = st.columns(2)
-                    with c_e1:
-                        p_ed = st.number_input("Preço", min_value=0.0, value=float(item_atual['Preço (R$)']), step=10.0, key="p_ed")
-                    with c_e2:
-                        s_ed = st.number_input("Sinal", min_value=0.0, value=float(item_atual['Sinal (R$)']), step=10.0, key="s_ed")
-                    
-                    # Botões de Ação
-                    c_btn1, c_btn2 = st.columns(2)
-                    with c_btn1:
-                        if st.form_submit_button("💾 Salvar"):
-                            js_rules = item_atual['raw_regras']
-                            if not isinstance(js_rules, dict): js_rules = {}
-                            
-                            # Atualiza valores
-                            js_rules['preco_padrao'] = p_ed
-                            js_rules['valor_sinal'] = s_ed
-                            
-                            try:
-                                supabase.table('produtos').update({
-                                    "nome": n_ed,
-                                    "categoria": c_ed,
-                                    "regras_preco": js_rules
-                                }).eq('id', sel_id).execute()
-                                st.success("Atualizado!"); time.sleep(1); st.rerun()
-                            except Exception as e:
-                                st.error(f"Erro: {e}")
-                    
-                    with c_btn2:
-                        # Botão de deletar precisa ser fora do form ou usar um truque, 
-                        # mas dentro do form o submit recarrega. 
-                        # Vamos usar um checkbox de confirmação para segurança.
-                        deletar = st.checkbox("Excluir este item?")
-                        if st.form_submit_button("🗑️ Excluir"):
-                            if deletar:
-                                try:
-                                    supabase.table('produtos').delete().eq('id', sel_id).execute()
-                                    st.success("Excluído!"); time.sleep(1); st.rerun()
-                                except Exception as e:
-                                    st.error(f"Erro: {e}")
-                            else:
-                                st.warning("Marque a caixa acima para confirmar.")
-
-# ------------------------------------------------------------------------------
-# TAB 3: AGENDA
-# ------------------------------------------------------------------------------
-with tabs[2]:
-    try:
-        res_prod = supabase.table('produtos').select('id, nome, categoria').eq('cliente_id', c_id).execute()
-        map_prod = {}
-        cats_disponiveis = set()
-        if res_prod.data:
-            for p in res_prod.data:
-                map_prod[p['id']] = p['nome']
-                if p.get('categoria'): 
-                    cats_disponiveis.add(p['categoria'])
-        
-        map_prod_inv = {v: k for k, v in map_prod.items()}
-        map_prof = {}
+    # ------------------------------------------------------------------------------
+    # TAB 1: ANALYTICS
+    # ------------------------------------------------------------------------------
+    with tabs[0]:
         try:
-            res_prof = supabase.table('profissionais').select('id, nome').eq('cliente_id', c_id).execute()
-            if res_prof.data: map_prof = {p['id']: p['nome'] for p in res_prof.data}
-        except: pass
-        map_prof_inv = {v: k for k, v in map_prof.items()}
-    except: map_prod, cats_disponiveis = {}, set()
-
-    ca_left, ca_right = st.columns([2, 1])
-    with ca_left:
-        st.subheader("📅 Próximos Agendamentos")
-        lista_agenda, delete_map = [], {}
-        try:
-            rs = supabase.table('agendamentos_salao').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(20).execute()
-            for i in (rs.data or []):
-                nm = map_prod.get(i.get('produto_salao_id'), 'Evento')
-                dt = i['data_reserva']
-                cli = i.get('cliente_final_waid') or 'Cliente'
-                lb = f"[EVT] {dt} - {cli}"
-                delete_map[lb] = {'id': i['id'], 't': 'salao'}
-                lista_agenda.append({'Data': i['data_reserva'], 'Cliente': i.get('cliente_final_waid'), 'Item': nm, 'Profissional': '-', 'Tipo': 'Evento'})
-        except: pass
-        
-        try:
-            rv = supabase.table('agendamentos').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(20).execute()
-            for i in (rv.data or []):
-                nm = map_prod.get(i.get('servico_id'), 'Serviço')
-                dt = i.get('data_hora_inicio')
-                nome_prof = map_prof.get(i.get('profissional_id'), '-')
-                try: dt = pd.to_datetime(dt).strftime('%d/%m %H:%M')
-                except: pass
-                cli = i.get('cliente_final_waid') or i.get('cliente_final_nome') or 'Cliente'
-                lb = f"[SVC] {dt} - {cli}"
-                delete_map[lb] = {'id': i['id'], 't': 'servico'}
-                lista_agenda.append({'Data': dt, 'Cliente': cli, 'Item': nm, 'Profissional': nome_prof, 'Tipo': 'Serviço'})
-        except: pass
-
-        if lista_agenda:
-            st.dataframe(pd.DataFrame(lista_agenda), use_container_width=True, hide_index=True)
-        else: st.info("Agenda vazia.")
-        
-        st.divider()
-        if delete_map:
-            s_del = st.selectbox("🗑️ Apagar:", list(delete_map.keys()))
-            if st.button("Confirmar Apagar"):
-                tb = 'agendamentos_salao' if delete_map[s_del]['t'] == 'salao' else 'agendamentos'
-                supabase.table(tb).delete().eq('id', delete_map[s_del]['id']).execute()
-                st.success("Apagado!"); time.sleep(1); st.rerun()
-
-    with ca_right:
-        st.markdown("#### ➕ Novo")
-        tem_salao = any('Salão' in c for c in cats_disponiveis)
-        tem_servico = any('Serviço' in c and 'Salão' not in c for c in cats_disponiveis)
-        
-        opts = []
-        if tem_servico: opts.append("Serviço (Horário)")
-        if tem_salao: opts.append("Evento (Salão)")
-        
-        if len(opts) == 1: tipo_add = opts[0]
-        elif len(opts) > 1: tipo_add = st.radio("Tipo:", opts)
-        else: tipo_add = "Serviço (Horário)" 
-        
-        with st.form("add_agd"):
-            cli = st.text_input("Cliente (Nome/WhatsApp)")
-            d_date = st.date_input("Data", value=datetime.now().date())
+            r_s = supabase.table('agendamentos_salao').select('created_at, valor_sinal_registrado, status, produto_salao_id').eq('cliente_id', c_id).execute().data
+            r_p = supabase.table('agendamentos').select('created_at, valor_sinal_registrado, status, servico_id').eq('cliente_id', c_id).execute().data
+            r_pr = supabase.table('produtos').select('id, nome').eq('cliente_id', c_id).execute().data
+            map_pr = {p['id']: p['nome'] for p in r_pr} if r_pr else {}
             
-            if "Horário" in tipo_add:
-                d_time = st.time_input("Hora", value=dt_time(9,0))
-                s_serv = st.selectbox("Serviço", list(map_prod_inv.keys()))
-                s_prof = st.selectbox("Profissional", list(map_prof_inv.keys())) if map_prof else None
-                val = st.number_input("R$", 0.0)
-                
-                if st.form_submit_button("Agendar", type="primary"):
-                    try:
-                        dt_iso = datetime.combine(d_date, d_time).isoformat()
-                        pl = {"cliente_id": c_id, "data_hora_inicio": dt_iso, "cliente_final_waid": cli, "servico_id": map_prod_inv.get(s_serv), "valor_total_registrado": val, "status":"Confirmado"}
-                        if s_prof: pl["profissional_id"] = map_prof_inv[s_prof]
-                        supabase.table('agendamentos').insert(pl).execute()
-                        st.success("Ok!"); time.sleep(1); st.rerun()
-                    except Exception as e: st.error(f"Erro: {e}")
-            else:
-                s_prod = st.selectbox("Pacote", list(map_prod_inv.keys()))
-                val = st.number_input("R$", 0.0)
-                if st.form_submit_button("Agendar", type="primary"):
-                    try:
-                        pl = {"cliente_id": c_id, "data_reserva": str(d_date), "cliente_final_waid": cli, "produto_salao_id": map_prod_inv.get(s_prod), "valor_total_registrado": val, "status":"Confirmado"}
-                        supabase.table('agendamentos_salao').insert(pl).execute()
-                        st.success("Ok!"); time.sleep(1); st.rerun()
-                    except Exception as e: st.error(f"Erro: {e}")
-
-# ------------------------------------------------------------------------------
-# TAB 4: CÉREBRO (SEM FINANCEIRO)
-# ------------------------------------------------------------------------------
-with tabs[3]:
-    st.subheader("Configuração da IA")
-
-    try:
-        # Busca configurações no banco
-        res = supabase.table('clientes').select('config_fluxo, prompt_full').eq('id', c_id).execute()
-        
-        if res.data and len(res.data) > 0:
-            d = res.data[0]
+            lista = []
+            if r_s:
+                for i in r_s: lista.append({'dt': i['created_at'], 'v': i.get('valor_sinal_registrado',0), 'st': i['status'], 'p': map_pr.get(i.get('produto_salao_id'), 'Salão')})
+            if r_p:
+                for i in r_p: lista.append({'dt': i['created_at'], 'v': i.get('valor_sinal_registrado',0), 'st': i['status'], 'p': map_pr.get(i.get('servico_id'), 'Serviço')})
             
-            # --- CARREGAR DADOS (VARIÁVEL curr_c) ---
-            curr_c = d.get('config_fluxo')
-            if curr_c is None: curr_c = {}
-            elif isinstance(curr_c, str):
-                try: curr_c = json.loads(curr_c)
-                except: curr_c = {}
-            elif not isinstance(curr_c, dict): curr_c = {}
+            if lista:
+                df = pd.DataFrame(lista)
+                df['dt_full'] = pd.to_datetime(df['dt'], format='mixed')
+                df['dt'] = df['dt_full'].dt.date
+                df = df[df['st'] != 'Cancelado']
+                
+                min_date = df['dt'].min()
+                max_date = df['dt'].max()
+                if pd.isnull(min_date): min_date = datetime.now().date()
+                if pd.isnull(max_date): max_date = datetime.now().date()
+                
+                with st.container(border=True):
+                    cf1, cf2 = st.columns(2)
+                    with cf1:
+                        d_select = st.date_input("📅 Período", value=(min_date, max_date), min_value=min_date, max_value=max_date)
+                    with cf2:
+                        prods_un = df['p'].unique()
+                        prod_sel = st.multiselect("📦 Filtrar Produtos", prods_un, default=prods_un)
 
-            prompt_atual = d.get('prompt_full') or ""
-            
-            c_p1, c_p2 = st.columns([2, 1])
-            
-            # --- COLUNA DA ESQUERDA: PROMPT ---
-            with c_p1:
-                st.markdown("##### Personalidade & Regras")
-                new_p = st.text_area("Instruções do Sistema", value=prompt_atual, height=550, help="Descreva como o Otti deve se comportar.")
-            
-            # --- COLUNA DA DIREITA: CONFIGURAÇÕES VISUAIS ---
-            with c_p2:
-                st.header("Configurações") 
-                
-                # GRUPO 1: PERSONALIDADE E ÁUDIO
-                st.subheader("🔊 Personalidade e Voz")
-                
-                openai_audio = st.toggle(
-                    "Respostas em Áudio", 
-                    value=bool(curr_c.get('responde_em_audio', False)),
-                    help="Ativar envio de áudio pela IA."
-                )
-                
-                mapa_vozes = {
-                    "alloy": "Alloy (Neutro)", "echo": "Echo (Suave)",
-                    "fable": "Fable (Narrador)", "onyx": "Onyx (Profundo)",
-                    "nova": "Nova (Energético)", "shimmer": "Shimmer (Calmo)"
-                }
-                
-                voz_atual_code = curr_c.get('openai_voice', 'alloy')
-                voz_display = st.selectbox(
-                    "Voz do Assistente",
-                    options=list(mapa_vozes.values()),
-                    index=list(mapa_vozes.keys()).index(voz_atual_code) if voz_atual_code in mapa_vozes else 0
-                )
-                openai_voice = [k for k, v in mapa_vozes.items() if v == voz_display][0]
-                
-                st.write("") 
-                
-                temp_val = float(curr_c.get('temperature', 0.8))
-                temperature = st.slider("Tom de Voz", 0.0, 1.0, temp_val, 0.1)
-                
-                if temperature < 0.5: st.info("🤖 **Modo Robótico**")
-                else: st.success("✨ **Modo Humano**")
-                
-                st.divider()
+                df_filt = df.copy()
+                if isinstance(d_select, tuple) and len(d_select) == 2:
+                    start_d, end_d = d_select
+                    df_filt = df_filt[(df_filt['dt'] >= start_d) & (df_filt['dt'] <= end_d)]
+                if prod_sel:
+                    df_filt = df_filt[df_filt['p'].isin(prod_sel)]
 
-                # GRUPO 2: HORÁRIO DE ATENDIMENTO
-                st.subheader("🕒 Horário")
-                lista_horarios = [f"{i:02d}:00" for i in range(24)]
-                
-                try: idx_i = lista_horarios.index(curr_c.get('horario_inicio', '09:00'))
-                except: idx_i = 9
-                try: idx_f = lista_horarios.index(curr_c.get('horario_fim', '18:00'))
-                except: idx_f = 18
-                
-                ch1, ch2 = st.columns(2)
-                with ch1: h_inicio_sel = st.selectbox("Início", lista_horarios, idx_i)
-                with ch2: h_fim_sel = st.selectbox("Fim", lista_horarios, idx_f)
-                
                 st.markdown("<br>", unsafe_allow_html=True)
-                
-                # BOTÃO SALVAR (Sem Financeiro)
-                if st.button("💾 SALVAR TUDO", type="primary", use_container_width=True):
+
+                # Gráficos
+                c_g1, c_g2 = st.columns(2)
+                with c_g1:
+                    st.markdown("##### 📈 Receita Diária")
+                    df_g = df_filt.groupby('dt')['v'].sum().reset_index()
+                    if not df_g.empty:
+                        fig = px.line(df_g, x='dt', y='v', text='v')
+                        fig.update_traces(line_shape='spline', line_color=C_ACCENT_NEON, line_width=4, textposition="top center", texttemplate='R$%{text:.0f}', mode='lines+text')
+                        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': C_TEXT_DARK}, xaxis=dict(showgrid=False, title=None), yaxis=dict(showgrid=False, showticklabels=False, title=None), margin=dict(l=0, r=0, t=20, b=20))
+                        st.plotly_chart(fig, use_container_width=True)
+                    else: st.info("Sem dados.")
+
+                with c_g2:
+                    st.markdown("##### 📊 Volume")
+                    df_vol = df_filt.groupby('dt').size().reset_index(name='qtd')
+                    if not df_vol.empty:
+                        fig_vol = px.bar(df_vol, x='dt', y='qtd', text='qtd')
+                        fig_vol.update_traces(marker_color=C_SIDEBAR_NAVY, textposition='outside')
+                        fig_vol.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': C_TEXT_DARK}, xaxis=dict(showgrid=False, title=None), yaxis=dict(showgrid=False, showticklabels=False, title=None), margin=dict(l=0, r=0, t=20, b=20))
+                        st.plotly_chart(fig_vol, use_container_width=True)
+                    else: st.info("Sem dados.")
+
+            else: st.info("Sem dados.")
+        except Exception as e: st.error(f"Erro Visual: {e}")
+
+    # ------------------------------------------------------------------------------
+    # TAB 2: PRODUTOS (COM SINAL INDIVIDUAL)
+    # ------------------------------------------------------------------------------
+    with tabs[1]:
+        rp = supabase.table('produtos').select('id, nome, categoria, regras_preco').eq('cliente_id', c_id).order('nome').execute()
+        lista_produtos = []
+        if rp.data:
+            for item in rp.data:
+                regras = item.get('regras_preco', {})
+                if isinstance(regras, str):
+                    try: regras = json.loads(regras)
+                    except: regras = {}
+                if not isinstance(regras, dict): regras = {}
+                lista_produtos.append({
+                    'id': item['id'], 'Nome': item['nome'], 'Categoria': item['categoria'],
+                    'Preço (R$)': float(regras.get('preco_padrao', 0)),
+                    'Sinal (R$)': float(regras.get('valor_sinal', 0)), 'raw_regras': regras
+                })
+            df_prod = pd.DataFrame(lista_produtos)
+        else: df_prod = pd.DataFrame()
+
+        col_table, col_actions = st.columns([2, 1])
+        with col_table:
+            if not df_prod.empty:
+                st.dataframe(df_prod[['Nome', 'Categoria', 'Preço (R$)', 'Sinal (R$)']], use_container_width=True, hide_index=True)
+            else: st.info("Nenhum produto cadastrado.")
+
+        with col_actions:
+            tab_new, tab_edit = st.tabs(["➕ Novo", "✏️ Editar"])
+            with tab_new:
+                with st.form("form_add_prod"):
+                    n_new = st.text_input("Nome")
+                    c_new = st.selectbox("Categoria", ["Serviço", "Produto", "Serviço Salão"], key="c_n")
+                    cv1, cv2 = st.columns(2)
+                    with cv1: p_new = st.number_input("Preço", min_value=0.0, step=10.0, key="pn")
+                    with cv2: s_new = st.number_input("Sinal", min_value=0.0, step=10.0, key="sn")
+                    if st.form_submit_button("Salvar", type="primary"):
+                        if n_new:
+                            js = {"preco_padrao": p_new, "valor_sinal": s_new, "duracao_minutos": 60}
+                            supabase.table('produtos').insert({"cliente_id": c_id, "nome": n_new, "categoria": c_new, "ativo": True, "regras_preco": js}).execute()
+                            st.success("Criado!"); time.sleep(1); st.rerun()
+
+            with tab_edit:
+                if not df_prod.empty:
+                    map_ids = {row['Nome']: row['id'] for i, row in df_prod.iterrows()}
+                    sel_name = st.selectbox("Editar:", list(map_ids.keys()))
+                    sel_id = map_ids[sel_name]
+                    item_atual = df_prod[df_prod['id'] == sel_id].iloc[0]
+                    with st.form("form_edit_prod"):
+                        n_ed = st.text_input("Nome", value=item_atual['Nome'])
+                        try: idx_c = ["Serviço", "Produto", "Serviço Salão"].index(item_atual['Categoria'])
+                        except: idx_c = 0
+                        c_ed = st.selectbox("Categoria", ["Serviço", "Produto", "Serviço Salão"], index=idx_c)
+                        ce1, ce2 = st.columns(2)
+                        with ce1: p_ed = st.number_input("Preço", value=float(item_atual['Preço (R$)']), step=10.0)
+                        with ce2: s_ed = st.number_input("Sinal", value=float(item_atual['Sinal (R$)']), step=10.0)
+                        
+                        cb1, cb2 = st.columns(2)
+                        with cb1:
+                            if st.form_submit_button("💾 Salvar"):
+                                js = item_atual['raw_regras']
+                                if not isinstance(js, dict): js = {}
+                                js['preco_padrao'] = p_ed; js['valor_sinal'] = s_ed
+                                supabase.table('produtos').update({"nome": n_ed, "categoria": c_ed, "regras_preco": js}).eq('id', sel_id).execute()
+                                st.success("Ok!"); time.sleep(1); st.rerun()
+                        with cb2:
+                            del_chk = st.checkbox("Excluir?")
+                            if st.form_submit_button("🗑️"):
+                                if del_chk:
+                                    supabase.table('produtos').delete().eq('id', sel_id).execute()
+                                    st.success("Tchau!"); time.sleep(1); st.rerun()
+
+    # ------------------------------------------------------------------------------
+    # TAB 3: AGENDA
+    # ------------------------------------------------------------------------------
+    with tabs[2]:
+        try:
+            res_prod = supabase.table('produtos').select('id, nome').eq('cliente_id', c_id).execute()
+            map_prod = {p['id']: p['nome'] for p in res_prod.data} if res_prod.data else {}
+            map_prod_inv = {v: k for k, v in map_prod.items()}
+        except: map_prod, map_prod_inv = {}, {}
+
+        cl, cr = st.columns([2, 1])
+        with cl:
+            st.subheader("Agenda")
+            lista_agenda, delete_map = [], {}
+            # Busca Serviços
+            try:
+                rv = supabase.table('agendamentos').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(15).execute()
+                for i in (rv.data or []):
+                    nm = map_prod.get(i.get('servico_id'), 'Serviço')
+                    dt = pd.to_datetime(i.get('data_hora_inicio')).strftime('%d/%m %H:%M')
+                    lista_agenda.append({'Data': dt, 'Cliente': i.get('cliente_final_waid'), 'Item': nm})
+                    delete_map[f"[S] {dt} {nm}"] = {'id': i['id'], 't': 'agendamentos'}
+            except: pass
+            
+            # Busca Eventos
+            try:
+                re = supabase.table('agendamentos_salao').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(15).execute()
+                for i in (re.data or []):
+                    nm = map_prod.get(i.get('produto_salao_id'), 'Salão')
+                    dt = i.get('data_reserva')
+                    lista_agenda.append({'Data': dt, 'Cliente': i.get('cliente_final_waid'), 'Item': nm})
+                    delete_map[f"[E] {dt} {nm}"] = {'id': i['id'], 't': 'agendamentos_salao'}
+            except: pass
+
+            if lista_agenda: st.dataframe(pd.DataFrame(lista_agenda), use_container_width=True, hide_index=True)
+            else: st.info("Vazia.")
+            
+            if delete_map:
+                s_del = st.selectbox("Apagar:", list(delete_map.keys()))
+                if st.button("Confirmar Apagar"):
+                    tabela = delete_map[s_del]['t']
+                    supabase.table(tabela).delete().eq('id', delete_map[s_del]['id']).execute()
+                    st.rerun()
+
+        with cr:
+            st.write("**Novo Agendamento**")
+            with st.form("new_agd"):
+                cli = st.text_input("Cliente")
+                dt_d = st.date_input("Data")
+                dt_h = st.time_input("Hora")
+                item = st.selectbox("Item", list(map_prod_inv.keys())) if map_prod_inv else None
+                val = st.number_input("Valor", 0.0)
+                if st.form_submit_button("Agendar", type="primary"):
                     try:
-                        curr_c['openai_voice'] = openai_voice
-                        curr_c['temperature'] = temperature
-                        curr_c['responde_em_audio'] = openai_audio
-                        curr_c['horario_inicio'] = h_inicio_sel
-                        curr_c['horario_fim'] = h_fim_sel
-                        
-                        supabase.table('clientes').update({
-                            'prompt_full': new_p, 
-                            'config_fluxo': curr_c
-                        }).eq('id', c_id).execute()
-                        
-                        st.success("Atualizado!")
-                        time.sleep(1)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Erro: {e}")
-        else:
-            st.warning("Erro ao carregar configurações.")
-    except Exception as e:
-        st.error(f"Erro Cérebro: {e}")
+                        dt_iso = datetime.combine(dt_d, dt_h).isoformat()
+                        # Tenta inserir como serviço (padrão simplificado)
+                        supabase.table('agendamentos').insert({
+                            "cliente_id": c_id, "data_hora_inicio": dt_iso, 
+                            "cliente_final_waid": cli, "servico_id": map_prod_inv.get(item), 
+                            "valor_total_registrado": val, "status": "Confirmado"
+                        }).execute()
+                        st.success("Feito!"); time.sleep(1); st.rerun()
+                    except Exception as e: st.error(f"Erro: {e}")
+
+    # ------------------------------------------------------------------------------
+    # TAB 4: CÉREBRO (IA)
+    # ------------------------------------------------------------------------------
+    with tabs[3]:
+        st.subheader("Configuração da IA")
+        try:
+            res = supabase.table('clientes').select('config_fluxo, prompt_full').eq('id', c_id).execute()
+            if res.data:
+                d = res.data[0]
+                curr_c = d.get('config_fluxo')
+                if isinstance(curr_c, str): curr_c = json.loads(curr_c)
+                if not isinstance(curr_c, dict): curr_c = {}
+                prompt_atual = d.get('prompt_full') or ""
+                
+                c_p1, c_p2 = st.columns([2, 1])
+                with c_p1:
+                    new_p = st.text_area("Instruções (Prompt)", value=prompt_atual, height=500)
+                with c_p2:
+                    st.write("**Parâmetros**")
+                    aud = st.toggle("Áudio", value=bool(curr_c.get('responde_em_audio', False)))
+                    voz = st.selectbox("Voz", ["alloy", "echo", "fable", "onyx", "nova", "shimmer"], index=0)
+                    temp = st.slider("Criatividade", 0.0, 1.0, float(curr_c.get('temperature', 0.5)))
+                    
+                    st.write("**Horário**")
+                    h_ini = st.selectbox("Início", [f"{i:02d}:00" for i in range(24)], index=9)
+                    h_fim = st.selectbox("Fim", [f"{i:02d}:00" for i in range(24)], index=18)
+                    
+                    if st.button("💾 SALVAR TUDO", type="primary"):
+                        curr_c.update({
+                            "responde_em_audio": aud, "openai_voice": voz, "temperature": temp,
+                            "horario_inicio": h_ini, "horario_fim": h_fim
+                        })
+                        supabase.table('clientes').update({'prompt_full': new_p, 'config_fluxo': curr_c}).eq('id', c_id).execute()
+                        st.success("Salvo!"); time.sleep(1); st.rerun()
+        except Exception as e: st.error(f"Erro: {e}")
+
 
 
 
