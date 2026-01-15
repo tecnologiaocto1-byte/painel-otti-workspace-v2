@@ -108,18 +108,27 @@ st.markdown(f"""
     }}
 
     /* --- BOTÃO SIDEBAR --- */
-    section[data-testid="stSidebar"] button[kind="secondary"] {{
+    section[data-testid="stSidebar"] button[kind="secondary"] {
         background-color: transparent !important;
         border: 1px solid rgba(255,255,255,0.6) !important;
         color: #FFFFFF !important;
-    }}
-    section[data-testid="stSidebar"] button[kind="secondary"]:hover {{
+    }
+    
+    /* Botão Primário na Sidebar (O botão de + Novo Cliente) */
+    section[data-testid="stSidebar"] button[kind="primary"] {
+        background-color: #3F00FF !important; /* Azul Neon */
+        color: #FFFFFF !important;
+        border: none !important;
+        font-weight: 800 !important;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+    
+    section[data-testid="stSidebar"] button[kind="primary"]:hover {
         background-color: #FFFFFF !important;
-        color: {C_SIDEBAR_NAVY} !important;
-        border-color: #FFFFFF !important;
-    }}
-    section[data-testid="stSidebar"] button[kind="secondary"] p {{ color: inherit !important; }}
-
+        color: #3F00FF !important;
+        transform: scale(1.02);
+    }
+    
     /* --- LOGIN & MOBILE --- */
     .login-container {{
         max-width: 400px; margin: 8vh auto 0 auto; background: white;
@@ -677,3 +686,4 @@ else:
                         st.rerun()
 
         except Exception as e: st.error(f"Erro Cérebro: {e}")
+
