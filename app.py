@@ -286,7 +286,12 @@ k3.metric("Atendimentos", c_data.get('total_atendimentos', 0))
 k4.metric("Status Atual", "Online 🟢" if active else "Offline 🔴")
 st.markdown("<br>", unsafe_allow_html=True)
 
-tabs = st.tabs(["📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
+# --- DEFINIÇÃO DE ABAS INTELIGENTE ---
+titulos_abas = ["📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"]
+if perfil == 'admin':
+    titulos_abas.append("🏢 Clientes (Admin)")
+
+tabs = st.tabs(titulos_abas)
 
 # ------------------------------------------------------------------------------
 # TAB 1: ANALYTICS (COM GRÁFICO DE VOLUME)
@@ -740,6 +745,100 @@ with tabs[3]:
             st.warning("Erro ao carregar configurações.")
     except Exception as e:
         st.error(f"Erro Cérebro: {e}")
+
+
+# ------------------------------------------------------------------------------
+# TAB 5: GESTÃO DE CLIENTES (APENAS ADMIN)
+# ------------------------------------------------------------------------------
+if perfil == 'admin' and len(tabs) == 5:
+    with tabs[4]:
+        st.header("Gestão de Clientes")
+        
+        col_new, col_list = st.columns([1, 2])
+        
+        # --- COLUNA 1: CADASTRO DE NOVO CLIENTE ---
+        with col_new:
+            with st.container(border=True):
+                st.markdown("### 🆕 Novo Cliente")
+                with st.form("form_novo_cliente"):
+                    st.caption("Dados da Empresa")
+                    empresa_nome = st.text_input("Nome da Empresa")
+                    whats_id = st.text_input("WhatsApp ID (Ex: 551199999999)")
+                    
+                    st.caption("Dados de Acesso (Login)")
+                    email_login = st.text_input("E-mail")
+                    senha_login = st.text_input("Senha", type="password")
+                    
+                    if st.form_submit_button("Criar Cliente", type="primary"):
+                        if not empresa_nome or not email_login or not senha_login:
+                            st.warning("Preencha nome, e-mail e senha.")
+                        else:
+                            try:
+                                # 1. Cria a Empresa na tabela 'clientes'
+                                # Default config básica para não quebrar o painel
+                                config_base = {
+                                    "horario_inicio": "09:00", 
+                                    "horario_fim": "18:00", 
+                                    "sinal_minimo_reais": 50.0,
+                                    "temperature": 0.5,
+                                    "responde_em_audio": False
+                                }
+                                
+                                res_cli = supabase.table('clientes').insert({
+                                    "nome_empresa": empresa_nome,
+                                    "whatsapp_id": whats_id,
+                                    "ativo": True,
+                                    "bot_pausado": False,
+                                    "config_fluxo": config_base
+                                }).execute()
+                                
+                                if res_cli.data:
+                                    novo_id = res_cli.data[0]['id']
+                                    
+                                    # 2. Cria o Acesso na tabela 'acesso_painel'
+                                    supabase.table('acesso_painel').insert({
+                                        "cliente_id": novo_id,
+                                        "email": email_login,
+                                        "senha": senha_login,
+                                        "nome_usuario": "Admin " + empresa_nome,
+                                        "perfil": "user" # Cria como user padrão do cliente
+                                    }).execute()
+                                    
+                                    st.success(f"Cliente '{empresa_nome}' criado com sucesso!")
+                                    time.sleep(1.5)
+                                    st.rerun()
+                                else:
+                                    st.error("Erro ao criar empresa (ID não retornado).")
+                                    
+                            except Exception as e:
+                                st.error(f"Erro no processo: {e}")
+
+        # --- COLUNA 2: LISTA DE CLIENTES EXISTENTES ---
+        with col_list:
+            st.markdown("### 📋 Clientes Cadastrados")
+            try:
+                # Busca lista completa de clientes e seus logins
+                # (Nota: Supabase não faz JOIN simples via API Python facilmente, 
+                # então vamos listar as empresas e mostrar status)
+                res_all = supabase.table('clientes').select('*').order('created_at', desc=True).execute()
+                
+                if res_all.data:
+                    df_cli = pd.DataFrame(res_all.data)
+                    
+                    # Exibe tabela bonitinha
+                    st.dataframe(
+                        df_cli[['id', 'nome_empresa', 'whatsapp_id', 'ativo', 'bot_pausado']],
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                    
+                    st.caption("💡 *Dica: O ID do cliente é usado para vincular produtos e agendamentos.*")
+                else:
+                    st.info("Nenhum cliente encontrado.")
+                    
+            except Exception as e:
+                st.error(f"Erro ao listar: {e}")
+
 
 
 
