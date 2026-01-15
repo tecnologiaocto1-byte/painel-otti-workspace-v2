@@ -107,7 +107,7 @@ st.markdown(f"""
         transform: translateY(-1px);
     }}
 
-    /* --- BOTÕES DA SIDEBAR (Correção do botão branco) --- */
+    /* --- BOTÕES DA SIDEBAR --- */
     section[data-testid="stSidebar"] button[kind="secondary"] {{
         background-color: transparent !important;
         border: 1px solid rgba(255,255,255,0.6) !important;
@@ -119,7 +119,7 @@ st.markdown(f"""
         border-color: #FFFFFF !important;
     }}
     
-    /* O Botão "Novo Cliente" agora será AZUL NEON com texto BRANCO */
+    /* Botão "Novo Cliente" - Azul Neon */
     section[data-testid="stSidebar"] button[kind="primary"] {{
         background-color: {C_ACCENT_NEON} !important;
         color: #FFFFFF !important;
@@ -229,15 +229,13 @@ if 'modo_view' not in st.session_state:
 if perfil != 'admin':
     st.session_state['modo_view'] = 'dashboard'
 
-# --- CARREGA DADOS DO BANCO (CORREÇÃO DO ERRO) ---
-# Carregamos isso AQUI para a variável df_kpis existir quando a sidebar for montada.
+# --- CARREGA DADOS DO BANCO ---
 if not supabase: st.stop()
 try: 
     df_kpis = pd.DataFrame(supabase.table('view_dashboard_kpis').select("*").execute().data)
 except: 
     df_kpis = pd.DataFrame()
 
-# Inicializa c_data como None para segurança
 c_data = None
 
 # ==============================================================================
@@ -274,14 +272,12 @@ with st.sidebar:
                 sel = st.selectbox("Cliente:", lista, index=idx, key="cli_selector")
                 st.session_state['last_cli'] = sel
                 
-                # Define o cliente selecionado
                 c_data = df_kpis[df_kpis['nome_empresa'] == sel].iloc[0]
             else:
                 st.warning("Sem dados de KPI.")
                 c_data = None
             
             st.markdown("---")
-            # BOTÃO DE CADASTRO (Agora com CSS corrigido para Azul)
             if st.button("➕ NOVO CLIENTE", type="primary", use_container_width=True):
                 st.session_state['modo_view'] = 'cadastro'
                 st.rerun()
@@ -306,7 +302,7 @@ with st.sidebar:
 # 7. ROTEADOR DE TELAS (MAIN CONTENT)
 # ==============================================================================
 
-# --- TELA 1: CADASTRO DE CLIENTE (Exclusivo Admin) ---
+# --- TELA 1: CADASTRO DE CLIENTE ---
 if perfil == 'admin' and st.session_state['modo_view'] == 'cadastro':
     st.title("🏢 Cadastro de Novo Cliente")
     st.markdown("Crie uma nova empresa e o login do administrador dela.")
@@ -315,12 +311,10 @@ if perfil == 'admin' and st.session_state['modo_view'] == 'cadastro':
     with st.container(border=True):
         with st.form("form_novo_cliente_full"):
             col_a, col_b = st.columns(2)
-            
             with col_a:
                 st.subheader("Dados da Empresa")
                 empresa_nome = st.text_input("Nome da Empresa")
                 whats_id = st.text_input("WhatsApp ID (Ex: 551199999999)")
-            
             with col_b:
                 st.subheader("Login do Admin")
                 email_login = st.text_input("E-mail de Acesso")
@@ -334,13 +328,11 @@ if perfil == 'admin' and st.session_state['modo_view'] == 'cadastro':
                 else:
                     try:
                         with st.spinner("Criando infraestrutura..."):
-                            # Config Padrão
                             cfg_padrao = {
                                 "horario_inicio": "09:00", "horario_fim": "18:00", 
                                 "sinal_minimo_reais": 100.0, "temperature": 0.5,
                                 "responde_em_audio": False, "openai_voice": "alloy"
                             }
-                            # 1. Cria Cliente
                             res = supabase.table('clientes').insert({
                                 "nome_empresa": empresa_nome, "whatsapp_id": whats_id,
                                 "ativo": True, "bot_pausado": False, "config_fluxo": cfg_padrao
@@ -348,7 +340,6 @@ if perfil == 'admin' and st.session_state['modo_view'] == 'cadastro':
                             
                             if res.data:
                                 new_id = res.data[0]['id']
-                                # 2. Cria Login
                                 supabase.table('acesso_painel').insert({
                                     "cliente_id": new_id, "email": email_login, "senha": senha_login,
                                     "nome_usuario": f"Admin {empresa_nome}", "perfil": "user"
@@ -358,20 +349,15 @@ if perfil == 'admin' and st.session_state['modo_view'] == 'cadastro':
                                 time.sleep(1.5)
                                 st.session_state['modo_view'] = 'dashboard'
                                 st.rerun()
-                            else:
-                                st.error("Erro ao gerar ID da empresa.")
-                    except Exception as e:
-                        st.error(f"Erro técnico: {e}")
+                            else: st.error("Erro ao gerar ID da empresa.")
+                    except Exception as e: st.error(f"Erro técnico: {e}")
 
-# --- TELA 2: DASHBOARD (Se não for cadastro, cai aqui) ---
+# --- TELA 2: DASHBOARD ---
 else:
-    # Verificação de segurança (caso c_data não tenha sido preenchido na sidebar)
     if c_data is None:
         st.info("Nenhum cliente selecionado ou base de dados vazia.")
         st.stop()
 
-    # >>>>> INÍCIO DO PAINEL <<<<<
-    
     c_id = int(c_data['cliente_id'])
     active = not bool(c_data.get('bot_pausado', False))
 
@@ -388,7 +374,7 @@ else:
 
     st.divider()
 
-    # --- CÁLCULO DE KPIS ---
+    # --- KPIS ---
     SALARIO_MINIMO = 1518.00
     HORAS_MENSAIS = 22 * 8
     CUSTO_HORA = SALARIO_MINIMO / HORAS_MENSAIS
@@ -406,11 +392,11 @@ else:
     
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- ABAS (TABS) ---
+    # --- ABAS ---
     tabs = st.tabs(["📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
 
     # --------------------------------------------------------------------------
-    # TAB 1: ANALYTICS
+    # TAB 1: ANALYTICS (GRÁFICOS RESTAURADOS)
     # --------------------------------------------------------------------------
     with tabs[0]:
         try:
@@ -453,7 +439,7 @@ else:
 
                 st.markdown("<br>", unsafe_allow_html=True)
 
-                # Gráficos
+                # LINHA 1 DE GRÁFICOS
                 c_g1, c_g2 = st.columns(2)
                 with c_g1:
                     st.markdown("##### 📈 Receita Diária")
@@ -474,6 +460,32 @@ else:
                         fig_vol.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': C_TEXT_DARK}, xaxis=dict(showgrid=False, title=None), yaxis=dict(showgrid=False, showticklabels=False, title=None), margin=dict(l=0, r=0, t=20, b=20))
                         st.plotly_chart(fig_vol, use_container_width=True)
                     else: st.info("Sem dados.")
+
+                st.divider()
+
+                # LINHA 2 DE GRÁFICOS (Adicionada de volta!)
+                st.markdown("#### 🚀 Tendências")
+                c_t1, c_t2 = st.columns(2)
+                with c_t1:
+                    st.markdown("##### Faturamento Semanal")
+                    try:
+                        df_trend = df_filt.copy()
+                        df_trend['semana'] = pd.to_datetime(df_trend['dt']).dt.strftime('%Y-W%U')
+                        df_w = df_trend.groupby('semana')['v'].sum().reset_index()
+                        fig3 = px.bar(df_w, x='semana', y='v')
+                        fig3.update_traces(marker_color=C_SIDEBAR_NAVY)
+                        fig3.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': C_TEXT_DARK}, xaxis=dict(showgrid=False, title=None), yaxis=dict(showgrid=True, gridcolor='#E2E8F0', title=None), margin=dict(l=0, r=0, t=20, b=20))
+                        st.plotly_chart(fig3, use_container_width=True)
+                    except: st.info("Dados insuficientes.")
+                
+                with c_t2:
+                    st.markdown("##### Evolução de Produtos")
+                    try:
+                        df_area = df_filt.groupby(['dt', 'p'])['v'].sum().reset_index()
+                        fig4 = px.area(df_area, x='dt', y='v', color='p')
+                        fig4.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': C_TEXT_DARK}, xaxis=dict(showgrid=False, title=None), yaxis=dict(showgrid=True, gridcolor='#E2E8F0', showticklabels=False, title=None), margin=dict(l=0, r=0, t=20, b=20), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+                        st.plotly_chart(fig4, use_container_width=True)
+                    except: st.info("Dados insuficientes.")
 
             else: st.info("Sem dados para exibir.")
         except Exception as e: st.error(f"Erro Visual: {e}")
@@ -612,7 +624,7 @@ else:
                     except Exception as e: st.error(f"Erro: {e}")
 
     # --------------------------------------------------------------------------
-    # TAB 4: CÉREBRO (CORRIGIDO)
+    # TAB 4: CÉREBRO (IA - Harmonizado e com Nomes das Vozes)
     # --------------------------------------------------------------------------
     with tabs[3]:
         st.subheader("Configuração da IA")
@@ -634,31 +646,49 @@ else:
                 
                 # Coluna da Esquerda: Prompt
                 with c_p1:
-                    new_p = st.text_area("Instruções do Sistema", value=prompt_atual, height=550)
+                    st.markdown("##### Personalidade & Regras")
+                    new_p = st.text_area("Instruções do Sistema", value=prompt_atual, height=550, label_visibility="collapsed")
                 
-                # Coluna da Direita: Ajustes Finos
+                # Coluna da Direita: Ajustes Finos (Harmonizado)
                 with c_p2:
-                    st.header("Configurações")
-                    st.subheader("🔊 Personalidade e Voz")
+                    st.markdown("### Configurações")
+                    st.markdown("##### 🔊 Personalidade")
                     
-                    # Leitura segura dos valores para os widgets
                     val_audio = bool(curr_c.get('responde_em_audio', False))
                     val_temp = float(curr_c.get('temperature', 0.5))
                     val_voz = curr_c.get('openai_voice', 'alloy')
 
                     aud = st.toggle("Respostas em Áudio", value=val_audio)
                     
-                    vozes = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
-                    try: idx_voz = vozes.index(val_voz)
-                    except: idx_voz = 0
-                    voz = st.selectbox("Voz do Assistente", vozes, index=idx_voz)
+                    # Mapa de Vozes (Nome Amigável -> Código)
+                    mapa_vozes = {
+                        "alloy": "Alloy (Neutro)",
+                        "echo": "Echo (Suave)",
+                        "fable": "Fable (Narrador)",
+                        "onyx": "Onyx (Profundo)",
+                        "nova": "Nova (Energético)",
+                        "shimmer": "Shimmer (Calmo)"
+                    }
                     
-                    temp = st.slider("Tom de Voz", 0.0, 1.0, val_temp)
+                    # Se a voz atual não estiver no mapa (ex: erro antigo), usa alloy
+                    if val_voz not in mapa_vozes: val_voz = "alloy"
+                    
+                    # Selectbox mostra os valores (descrições), mas precisamos recuperar a chave
+                    voz_desc = st.selectbox(
+                        "Voz do Assistente", 
+                        list(mapa_vozes.values()), 
+                        index=list(mapa_vozes.keys()).index(val_voz)
+                    )
+                    # Recupera a chave (código) baseada na descrição selecionada
+                    voz_final = [k for k, v in mapa_vozes.items() if v == voz_desc][0]
+                    
+                    st.write("")
+                    temp = st.slider("Tom de Voz", 0.0, 1.0, val_temp, 0.1)
                     if temp < 0.5: st.info("🤖 Modo Robótico")
                     else: st.success("✨ Modo Humano")
 
                     st.divider()
-                    st.subheader("🕒 Horário")
+                    st.markdown("##### 🕒 Horário")
                     
                     lista_h = [f"{i:02d}:00" for i in range(24)]
                     try: idx_h_i = lista_h.index(curr_c.get('horario_inicio', '09:00'))
@@ -666,15 +696,16 @@ else:
                     try: idx_h_f = lista_h.index(curr_c.get('horario_fim', '18:00'))
                     except: idx_h_f = 18
 
-                    h_ini = st.selectbox("Início", lista_h, index=idx_h_i)
-                    h_fim = st.selectbox("Fim", lista_h, index=idx_h_f)
+                    c_h1, c_h2 = st.columns(2)
+                    with c_h1: h_ini = st.selectbox("Início", lista_h, index=idx_h_i)
+                    with c_h2: h_fim = st.selectbox("Fim", lista_h, index=idx_h_f)
                     
                     st.markdown("<br>", unsafe_allow_html=True)
                     
                     if st.button("💾 SALVAR TUDO", type="primary", use_container_width=True):
                         # Atualiza o dicionário local curr_c com os novos valores
                         curr_c['responde_em_audio'] = aud
-                        curr_c['openai_voice'] = voz
+                        curr_c['openai_voice'] = voz_final # Salva o código (ex: alloy)
                         curr_c['temperature'] = temp
                         curr_c['horario_inicio'] = h_ini
                         curr_c['horario_fim'] = h_fim
