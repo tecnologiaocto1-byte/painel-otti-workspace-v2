@@ -211,6 +211,15 @@ if not st.session_state['usuario_logado']:
 user = st.session_state['usuario_logado']
 perfil = user.get('perfil', 'user')
 
+# --- TRAVA DE SEGURANÇA E INICIALIZAÇÃO ---
+# Se não tiver modo definido, define como dashboard.
+if 'modo_view' not in st.session_state: 
+    st.session_state['modo_view'] = 'dashboard'
+
+# Se o cara não for admin, força ele a ver só o dashboard, mesmo que tente mudar.
+if perfil != 'admin':
+    st.session_state['modo_view'] = 'dashboard'
+
 def render_sidebar_logo():
     if os.path.exists("logo.png"): st.image("logo.png", width=120)
     else: st.markdown(f"<h1 style='color:white; margin:0;'>OCTO</h1>", unsafe_allow_html=True)
@@ -226,69 +235,147 @@ with st.sidebar:
         st.session_state['usuario_logado'] = None
         st.rerun()
 
-if not supabase: st.stop()
+    # --- MENU INTELIGENTE ---
+    if perfil == 'admin':
+        st.success("🔒 PAINEL ADMIN")
+        
+        # SÓ MOSTRA SELETOR DE CLIENTE SE ESTIVER NO DASHBOARD
+        if st.session_state['modo_view'] == 'dashboard':
+            if not df_kpis.empty:
+                lista = df_kpis['nome_empresa'].unique()
+                if 'last_cli' not in st.session_state: st.session_state['last_cli'] = lista[0]
+                if st.session_state['last_cli'] not in lista: st.session_state['last_cli'] = lista[0]
+                
+                idx = list(lista).index(st.session_state['last_cli'])
+                sel = st.selectbox("Cliente:", lista, index=idx, key="cli_selector")
+                st.session_state['last_cli'] = sel
+                c_data = df_kpis[df_kpis['nome_empresa'] == sel].iloc[0]
+            else:
+                st.warning("Sem dados de KPI.")
+                c_data = None
+            
+            st.markdown("---")
+            # BOTÃO PARA IR PARA CADASTRO
+            if st.button("➕ NOVO CLIENTE", type="primary", use_container_width=True):
+                st.session_state['modo_view'] = 'cadastro'
+                st.rerun()
+        
+        else:
+            # ESTÁ NA TELA DE CADASTRO -> BOTÃO VOLTAR
+            st.info("Modo de Cadastro")
+            st.markdown("---")
+            if st.button("⬅️ VOLTAR AO PAINEL", type="secondary", use_container_width=True):
+                st.session_state['modo_view'] = 'dashboard'
+                st.rerun()
+# ... (fim da sidebar)
 
-try: df_kpis = pd.DataFrame(supabase.table('view_dashboard_kpis').select("*").execute().data)
-except: df_kpis = pd.DataFrame()
+# ==============================================================================
+# ROTEADOR DE TELAS
+# ==============================================================================
 
-if perfil == 'admin':
-    if not df_kpis.empty:
-        lista = df_kpis['nome_empresa'].unique()
-        if 'last_cli' not in st.session_state: st.session_state['last_cli'] = lista[0]
-        if st.session_state['last_cli'] not in lista: st.session_state['last_cli'] = lista[0]
-        idx = list(lista).index(st.session_state['last_cli'])
-        sel = st.sidebar.selectbox("Cliente:", lista, index=idx, key="cli_selector")
-        st.session_state['last_cli'] = sel
-        c_data = df_kpis[df_kpis['nome_empresa'] == sel].iloc[0]
-    else:
-        st.warning("Sem dados de KPI.")
-        st.stop()
+# --- TELA 1: CADASTRO DE CLIENTE (Só Admin) ---
+if perfil == 'admin' and st.session_state['modo_view'] == 'cadastro':
+    st.title("🏢 Cadastro de Novo Cliente")
+    st.markdown("Crie uma nova empresa e o login do administrador dela.")
+    st.divider()
+
+    with st.container(border=True):
+        with st.form("form_novo_cliente_full"):
+            col_a, col_b = st.columns(2)
+            
+            with col_a:
+                st.subheader("Dados da Empresa")
+                empresa_nome = st.text_input("Nome da Empresa")
+                whats_id = st.text_input("WhatsApp ID (Ex: 551199999999)")
+            
+            with col_b:
+                st.subheader("Login do Admin")
+                email_login = st.text_input("E-mail de Acesso")
+                senha_login = st.text_input("Senha Inicial", type="password")
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            if st.form_submit_button("✅ CADASTRAR SISTEMA", type="primary", use_container_width=True):
+                if not empresa_nome or not email_login or not senha_login:
+                    st.warning("Preencha todos os campos.")
+                else:
+                    try:
+                        with st.spinner("Criando banco de dados..."):
+                            # Config Padrão
+                            cfg_padrao = {
+                                "horario_inicio": "09:00", "horario_fim": "18:00", 
+                                "sinal_minimo_reais": 100.0, "temperature": 0.5,
+                                "responde_em_audio": False, "openai_voice": "alloy"
+                            }
+                            # 1. Cria Cliente
+                            res = supabase.table('clientes').insert({
+                                "nome_empresa": empresa_nome, "whatsapp_id": whats_id,
+                                "ativo": True, "bot_pausado": False, "config_fluxo": cfg_padrao
+                            }).execute()
+                            
+                            if res.data:
+                                new_id = res.data[0]['id']
+                                # 2. Cria Login
+                                supabase.table('acesso_painel').insert({
+                                    "cliente_id": new_id, "email": email_login, "senha": senha_login,
+                                    "nome_usuario": f"Admin {empresa_nome}", "perfil": "user"
+                                }).execute()
+                                
+                                st.success("Cliente criado com sucesso!")
+                                time.sleep(1.5)
+                                st.session_state['modo_view'] = 'dashboard'
+                                st.rerun()
+                            else:
+                                st.error("Erro ao gerar ID da empresa.")
+                    except Exception as e:
+                        st.error(f"Erro técnico: {e}")
+
+# --- TELA 2: DASHBOARD (Seu código antigo entra AQUI) ---
 else:
-    filtro = df_kpis[df_kpis['cliente_id'] == user['cliente_id']]
-    if filtro.empty: 
-        st.error("Cliente não encontrado.")
+    # Verificação de segurança
+    if c_data is None:
+        st.info("Nenhum cliente selecionado ou base vazia.")
         st.stop()
-    c_data = filtro.iloc[0]
 
-c_id = int(c_data['cliente_id'])
-active = not bool(c_data.get('bot_pausado', False))
+    # --- INÍCIO DO DASHBOARD (Tudo indentado para a direita) ---
+    
+    c_id = int(c_data['cliente_id'])
+    active = not bool(c_data.get('bot_pausado', False))
 
-c1, c2 = st.columns([3, 1])
-with c1:
-    st.title(c_data['nome_empresa'])
-    st.caption(f"ID: {c_id}")
-with c2:
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        st.title(c_data['nome_empresa'])
+        st.caption(f"ID: {c_id}")
+    with c2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        lbl = "⏸️ PAUSAR SISTEMA" if active else "▶️ ATIVAR SISTEMA"
+        if st.button(lbl, use_container_width=True):
+            supabase.table('clientes').update({'bot_pausado': active}).eq('id', c_id).execute()
+            st.rerun()
+
+    st.divider()
+
+    # --- CÁLCULO DE KPIS ---
+    SALARIO_MINIMO = 1518.00
+    HORAS_MENSAIS = 22 * 8
+    CUSTO_HORA = SALARIO_MINIMO / HORAS_MENSAIS
+
+    tot_msgs = c_data.get('total_mensagens', 0)
+    horas_economizadas = round((tot_msgs * 1.5) / 60, 1)
+    valor_economia = horas_economizadas * CUSTO_HORA
+    receita_direta = float(c_data.get('receita_total', 0) or 0)
+
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Receita Direta", f"R$ {receita_direta:,.2f}")
+    k2.metric("Economia Estimada", f"R$ {valor_economia:,.2f}")
+    k3.metric("Atendimentos", c_data.get('total_atendimentos', 0))
+    k4.metric("Status Atual", "Online 🟢" if active else "Offline 🔴")
+    
     st.markdown("<br>", unsafe_allow_html=True)
-    lbl = "⏸️ PAUSAR SISTEMA" if active else "▶️ ATIVAR SISTEMA"
-    if st.button(lbl, use_container_width=True):
-        supabase.table('clientes').update({'bot_pausado': active}).eq('id', c_id).execute()
-        st.rerun()
 
-st.divider()
-
-# --- CÁLCULO DE KPIS (ATUALIZADO) ---
-# Salário Mínimo base 2024/2025 (~R$ 1.518,00)
-# Custo Hora = 1518 / (22 dias * 8 horas) = ~8.625
-SALARIO_MINIMO = 1518.00
-HORAS_MENSAIS = 22 * 8
-CUSTO_HORA = SALARIO_MINIMO / HORAS_MENSAIS
-
-tot_msgs = c_data.get('total_mensagens', 0)
-horas_economizadas = round((tot_msgs * 1.5) / 60, 1) # 1.5 min por mensagem
-valor_economia = horas_economizadas * CUSTO_HORA
-
-receita_direta = float(c_data.get('receita_total', 0) or 0)
-
-k1, k2, k3, k4 = st.columns(4)
-k1.metric("Receita Direta", f"R$ {receita_direta:,.2f}")
-k2.metric("Economia Estimada", f"R$ {valor_economia:,.2f}", help=f"Baseado em {horas_economizadas}h salvas (Custo hora: R$ {CUSTO_HORA:.2f})")
-k3.metric("Atendimentos", c_data.get('total_atendimentos', 0))
-k4.metric("Status Atual", "Online 🟢" if active else "Offline 🔴")
-st.markdown("<br>", unsafe_allow_html=True)
-
-# --- DEFINIÇÃO DE ABAS INTELIGENTE ---
-titulos_abas = ["📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"]
-tabs = st.tabs(titulos_abas)
+    # --- ABAS (TABS) ---
+    titulos_abas = ["📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"]
+    tabs = st.tabs(titulos_abas)
 
 # ------------------------------------------------------------------------------
 # TAB 1: ANALYTICS (COM GRÁFICO DE VOLUME)
@@ -742,6 +829,7 @@ with tabs[3]:
             st.warning("Erro ao carregar configurações.")
     except Exception as e:
         st.error(f"Erro Cérebro: {e}")
+
 
 
 
