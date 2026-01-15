@@ -304,7 +304,7 @@ with st.sidebar:
 
 # --- TELA 1: CADASTRO DE CLIENTE (COMPLETO) ---
 if perfil == 'admin' and st.session_state['modo_view'] == 'cadastro':
-    st.title("🏢 Cadastro de Novo Cliente (Full Setup)")
+    st.title("🏢 Cadastro de Novo Cliente")
     st.markdown("Configure a infraestrutura completa do novo inquilino.")
     
     with st.container(border=True):
@@ -368,7 +368,7 @@ if perfil == 'admin' and st.session_state['modo_view'] == 'cadastro':
             st.markdown("<br>", unsafe_allow_html=True)
             
             # --- SUBMIT ---
-            if st.form_submit_button("✅ CADASTRAR TUDO NO SUPABASE", type="primary", use_container_width=True):
+            if st.form_submit_button("✅ CADASTRAR", type="primary", use_container_width=True):
                 if not empresa_nome or not email_login or not senha_login:
                     st.warning("Preencha Nome, Login e Senha pelo menos.")
                 else:
@@ -815,4 +815,5 @@ else:
                         st.rerun()
 
         except Exception as e: st.error(f"Erro Cérebro: {e}")
+
 
