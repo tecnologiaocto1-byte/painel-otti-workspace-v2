@@ -44,7 +44,7 @@ def init_connection():
 supabase = init_connection()
 
 # ==============================================================================
-# 3. CSS
+# 3. CSS (VISUAL)
 # ==============================================================================
 
 st.markdown(f"""
@@ -90,7 +90,7 @@ st.markdown(f"""
     div[data-baseweb="popover"] {{ background-color: #FFFFFF !important; }}
     div[data-baseweb="option"] {{ color: #000000 !important; }}
 
-    /* --- BOTÕES --- */
+    /* --- BOTÕES GERAIS --- */
     button[kind="primary"] {{
         background-color: #FFFFFF !important;
         color: {C_ACCENT_NEON} !important;
@@ -107,27 +107,30 @@ st.markdown(f"""
         transform: translateY(-1px);
     }}
 
-    /* --- BOTÃO SIDEBAR --- */
-    section[data-testid="stSidebar"] button[kind="secondary"] {
+    /* --- BOTÕES DA SIDEBAR (Correção do botão branco) --- */
+    section[data-testid="stSidebar"] button[kind="secondary"] {{
         background-color: transparent !important;
         border: 1px solid rgba(255,255,255,0.6) !important;
         color: #FFFFFF !important;
-    }
+    }}
+    section[data-testid="stSidebar"] button[kind="secondary"]:hover {{
+        background-color: #FFFFFF !important;
+        color: {C_SIDEBAR_NAVY} !important;
+        border-color: #FFFFFF !important;
+    }}
     
-    /* Botão Primário na Sidebar (O botão de + Novo Cliente) */
-    section[data-testid="stSidebar"] button[kind="primary"] {
-        background-color: #3F00FF !important; /* Azul Neon */
+    /* O Botão "Novo Cliente" agora será AZUL NEON com texto BRANCO */
+    section[data-testid="stSidebar"] button[kind="primary"] {{
+        background-color: {C_ACCENT_NEON} !important;
         color: #FFFFFF !important;
         border: none !important;
         font-weight: 800 !important;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    }
-    
-    section[data-testid="stSidebar"] button[kind="primary"]:hover {
+    }}
+    section[data-testid="stSidebar"] button[kind="primary"]:hover {{
         background-color: #FFFFFF !important;
-        color: #3F00FF !important;
+        color: {C_ACCENT_NEON} !important;
         transform: scale(1.02);
-    }
+    }}
     
     /* --- LOGIN & MOBILE --- */
     .login-container {{
@@ -278,6 +281,7 @@ with st.sidebar:
                 c_data = None
             
             st.markdown("---")
+            # BOTÃO DE CADASTRO (Agora com CSS corrigido para Azul)
             if st.button("➕ NOVO CLIENTE", type="primary", use_container_width=True):
                 st.session_state['modo_view'] = 'cadastro'
                 st.rerun()
@@ -686,4 +690,3 @@ else:
                         st.rerun()
 
         except Exception as e: st.error(f"Erro Cérebro: {e}")
-
