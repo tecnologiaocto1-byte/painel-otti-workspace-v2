@@ -13,7 +13,6 @@ from datetime import datetime, timedelta, time as dt_time
 # 1. SETUP
 # ==============================================================================
 
-# forcei o initial_sidebar_state="expanded" para tentar manter aberto
 st.set_page_config(
     page_title="Otti Workspace", 
     layout="wide", 
@@ -45,102 +44,36 @@ def init_connection():
 supabase = init_connection()
 
 # ==============================================================================
-# 3. CSS (CORRIGIDO E SEGURO)
+# 3. CSS (VISUAL)
 # ==============================================================================
 
 st.markdown(f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;800&family=Inter:wght@300;400;600&display=swap');
-
     .stApp {{ background-color: {C_BG_OCTO_LIGHT}; color: {C_TEXT_DARK}; font-family: 'Inter', sans-serif; }}
     
     /* --- SIDEBAR --- */
     section[data-testid="stSidebar"] {{ background-color: {C_SIDEBAR_NAVY}; border-right: 1px solid rgba(255,255,255,0.1); }}
     section[data-testid="stSidebar"] p, section[data-testid="stSidebar"] span, section[data-testid="stSidebar"] label {{ color: #FFFFFF !important; }}
-
     h1 {{ font-family: 'Sora', sans-serif; color: {C_SIDEBAR_NAVY} !important; font-weight: 800; }}
     h2, h3, h4 {{ font-family: 'Sora', sans-serif; color: {C_TEXT_DARK} !important; font-weight: 700; }}
     p, label {{ color: {C_TEXT_DARK} !important; }}
 
-    /* --- CORREÇÃO DAS ABAS (TABS) --- */
-    button[data-baseweb="tab"] {{
-        color: {C_TEXT_DARK} !important;
-        font-family: 'Sora', sans-serif !important;
-        font-weight: 600 !important;
-    }}
-    button[data-baseweb="tab"][aria-selected="true"] {{
-        color: {C_ACCENT_NEON} !important;
-        border-color: {C_ACCENT_NEON} !important;
-    }}
+    /* --- ABAS --- */
+    button[data-baseweb="tab"] {{ color: {C_TEXT_DARK} !important; font-family: 'Sora', sans-serif !important; font-weight: 600 !important; }}
+    button[data-baseweb="tab"][aria-selected="true"] {{ color: {C_ACCENT_NEON} !important; border-color: {C_ACCENT_NEON} !important; }}
 
-    /* --- INPUTS --- */
-    .stTextInput > div > div > input {{
-        background-color: #FFFFFF !important;
-        color: #000000 !important;
-        border: 1px solid #CBD5E1;
-        border-radius: 8px;
-    }}
-    .stTextInput > div > div > button {{
-        background-color: transparent !important;
-        color: #64748B !important;
-        border: none !important;
-    }}
-
-    div[data-baseweb="select"] > div {{ background-color: #FFFFFF !important; border-color: #CBD5E1 !important; }}
-    div[data-baseweb="select"] span {{ color: #000000 !important; }}
-    div[data-baseweb="popover"] {{ background-color: #FFFFFF !important; }}
-    div[data-baseweb="option"] {{ color: #000000 !important; }}
-
-    /* --- BOTÕES (AGORA CLAROS) --- */
-    button[kind="primary"] {{
-        background-color: #FFFFFF !important;
-        color: {C_ACCENT_NEON} !important;
-        border: 2px solid {C_ACCENT_NEON} !important;
-        padding: 0.6rem 1.2rem;
-        border-radius: 8px;
-        font-weight: 700;
-        transition: all 0.2s ease;
-    }}
-    button[kind="primary"]:hover {{
-        background-color: {C_ACCENT_NEON} !important;
-        color: #FFFFFF !important;
-        box-shadow: 0 4px 12px rgba(63, 0, 255, 0.2);
-        transform: translateY(-1px);
-    }}
-
-    /* --- BOTÃO SIDEBAR --- */
-    section[data-testid="stSidebar"] button[kind="secondary"] {{
-        background-color: transparent !important;
-        border: 1px solid rgba(255,255,255,0.6) !important;
-        color: #FFFFFF !important;
-    }}
-    section[data-testid="stSidebar"] button[kind="secondary"]:hover {{
-        background-color: #FFFFFF !important;
-        color: {C_SIDEBAR_NAVY} !important;
-        border-color: #FFFFFF !important;
-    }}
-    section[data-testid="stSidebar"] button[kind="secondary"] p {{ color: inherit !important; }}
-
-    /* --- LOGIN & MOBILE --- */
-    .login-container {{
-        max-width: 400px; margin: 8vh auto 0 auto; background: white;
-        border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); overflow: hidden; 
-    }}
-    .login-header {{
-        background-color: {C_SIDEBAR_NAVY}; padding: 30px 0; text-align: center;
-        border-bottom: 4px solid {C_ACCENT_NEON}; display: flex; justify-content: center; align-items: center;
-    }}
+    /* --- INPUTS & BUTTONS --- */
+    .stTextInput > div > div > input {{ background-color: #FFFFFF !important; color: #000000 !important; border: 1px solid #CBD5E1; border-radius: 8px; }}
+    button[kind="primary"] {{ background-color: #FFFFFF !important; color: {C_ACCENT_NEON} !important; border: 2px solid {C_ACCENT_NEON} !important; font-weight: 700; }}
+    button[kind="primary"]:hover {{ background-color: {C_ACCENT_NEON} !important; color: #FFFFFF !important; }}
+    
+    /* --- LOGIN & EXTRAS --- */
+    .login-container {{ max-width: 400px; margin: 8vh auto; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); overflow: hidden; }}
+    .login-header {{ background-color: {C_SIDEBAR_NAVY}; padding: 30px 0; text-align: center; border-bottom: 4px solid {C_ACCENT_NEON}; }}
     .login-body {{ padding: 40px; padding-top: 20px; }}
-    div[data-testid="stForm"] {{ border: none; padding: 0; }}
-
-    @media (max-width: 600px) {{
-        .login-container {{ margin-top: 2vh; width: 95%; margin-left: auto; margin-right: auto; }}
-    }}
-
-    /* --- HEADER E CONTAINER --- */
     #MainMenu, footer {{visibility: hidden;}}
-    header[data-testid="stHeader"] {{ background: transparent !important; }}
-    .block-container {{padding-top: 0rem !important; padding-bottom: 2rem;}}
+    .block-container {{padding-top: 1rem !important; padding-bottom: 2rem;}}
 </style>
 """, unsafe_allow_html=True)
 
@@ -160,44 +93,24 @@ def render_login_screen():
     c1, c2, c3 = st.columns([1, 1, 1])
     with c2:
         logo_b64 = get_image_as_base64("logo.png")
-        if logo_b64:
-            img_html = f'<img src="data:image/png;base64,{logo_b64}" width="120" style="filter: brightness(0) invert(1); display: block; margin: 0 auto;">'
-        else:
-            img_html = '<h1 style="color:white !important; margin:0; font-family:Sora;">OCTO</h1>'
-
-        st.markdown(f"""
-        <div class="login-container">
-            <div class="login-header">
-                {img_html}
-            </div>
-            <div class="login-body">
-                <h4 style="text-align:center; color:#101828; margin-bottom:20px; font-family:Sora;">Acessar Workspace</h4>
-        """, unsafe_allow_html=True)
-
+        img_html = f'<img src="data:image/png;base64,{logo_b64}" width="120" style="filter: brightness(0) invert(1); display: block; margin: 0 auto;">' if logo_b64 else '<h1 style="color:white;text-align:center;">OCTO</h1>'
+        st.markdown(f"""<div class="login-container"><div class="login-header">{img_html}</div><div class="login-body"><h4 style="text-align:center;color:#101828;">Acessar Workspace</h4>""", unsafe_allow_html=True)
+        
         with st.form("login_master"):
             email = st.text_input("E-mail")
             senha = st.text_input("Senha", type="password")            
-
             st.markdown("<br>", unsafe_allow_html=True)         
-            submitted = st.form_submit_button("ENTRAR", type="primary", use_container_width=True)         
-
-            if submitted:
-                if not email or not senha: 
-                    st.warning("Preencha todos os campos.")
+            if st.form_submit_button("ENTRAR", type="primary", use_container_width=True):          
+                if not email or not senha: st.warning("Preencha todos os campos.")
+                elif not supabase: st.error("Erro de configuração interna.")
                 else:
-                    if not supabase: 
-                        st.error("Erro de configuração interna.")
-                    else:
-                        try:
-                            res = supabase.table('acesso_painel').select('*').eq('email', email).eq('senha', senha).execute()
-                            if res.data:
-                                st.session_state['usuario_logado'] = res.data[0]
-                                st.rerun()
-                            else: 
-                                st.error("Dados incorretos.")
-                        except Exception as e:
-                            st.error(f"Erro técnico: {e}")
-
+                    try:
+                        res = supabase.table('acesso_painel').select('*').eq('email', email).eq('senha', senha).execute()
+                        if res.data:
+                            st.session_state['usuario_logado'] = res.data[0]
+                            st.rerun()
+                        else: st.error("Dados incorretos.")
+                    except Exception as e: st.error(f"Erro técnico: {e}")
         st.markdown('</div></div>', unsafe_allow_html=True)
 
 if not st.session_state['usuario_logado']:
@@ -205,25 +118,29 @@ if not st.session_state['usuario_logado']:
     st.stop()
 
 # ==============================================================================
-# 5. DASHBOARD
+# 5. CARREGAMENTO DE DADOS E NAVEGAÇÃO
 # ==============================================================================
 
 user = st.session_state['usuario_logado']
 perfil = user.get('perfil', 'user')
 
 # --- TRAVA DE SEGURANÇA E INICIALIZAÇÃO ---
-# Se não tiver modo definido, define como dashboard.
-if 'modo_view' not in st.session_state: 
-    st.session_state['modo_view'] = 'dashboard'
+if 'modo_view' not in st.session_state: st.session_state['modo_view'] = 'dashboard'
+if perfil != 'admin': st.session_state['modo_view'] = 'dashboard'
 
-# Se o cara não for admin, força ele a ver só o dashboard, mesmo que tente mudar.
-if perfil != 'admin':
-    st.session_state['modo_view'] = 'dashboard'
+# --- CARREGA DADOS GLOBAIS (CRUCIAL: ANTES DA SIDEBAR) ---
+if not supabase: st.stop()
+try:
+    # Tenta carregar os dados de KPI. Se falhar, cria DataFrame vazio.
+    df_kpis = pd.DataFrame(supabase.table('view_dashboard_kpis').select("*").execute().data)
+except:
+    df_kpis = pd.DataFrame()
 
 def render_sidebar_logo():
     if os.path.exists("logo.png"): st.image("logo.png", width=120)
     else: st.markdown(f"<h1 style='color:white; margin:0;'>OCTO</h1>", unsafe_allow_html=True)
 
+# --- SIDEBAR (MENU LATERAL) ---
 with st.sidebar:
     st.markdown("<br>", unsafe_allow_html=True)
     render_sidebar_logo()
@@ -235,11 +152,11 @@ with st.sidebar:
         st.session_state['usuario_logado'] = None
         st.rerun()
 
-    # --- MENU INTELIGENTE ---
+    # MENU DE ADMIN
     if perfil == 'admin':
         st.success("🔒 PAINEL ADMIN")
         
-        # SÓ MOSTRA SELETOR DE CLIENTE SE ESTIVER NO DASHBOARD
+        # MODO DASHBOARD: Vê seletor e botão de novo cliente
         if st.session_state['modo_view'] == 'dashboard':
             if not df_kpis.empty:
                 lista = df_kpis['nome_empresa'].unique()
@@ -249,28 +166,35 @@ with st.sidebar:
                 idx = list(lista).index(st.session_state['last_cli'])
                 sel = st.selectbox("Cliente:", lista, index=idx, key="cli_selector")
                 st.session_state['last_cli'] = sel
+                # Define o cliente selecionado para uso no dashboard
                 c_data = df_kpis[df_kpis['nome_empresa'] == sel].iloc[0]
             else:
                 st.warning("Sem dados de KPI.")
                 c_data = None
             
             st.markdown("---")
-            # BOTÃO PARA IR PARA CADASTRO
             if st.button("➕ NOVO CLIENTE", type="primary", use_container_width=True):
                 st.session_state['modo_view'] = 'cadastro'
                 st.rerun()
         
+        # MODO CADASTRO: Vê botão de voltar
         else:
-            # ESTÁ NA TELA DE CADASTRO -> BOTÃO VOLTAR
             st.info("Modo de Cadastro")
             st.markdown("---")
             if st.button("⬅️ VOLTAR AO PAINEL", type="secondary", use_container_width=True):
                 st.session_state['modo_view'] = 'dashboard'
                 st.rerun()
-# ... (fim da sidebar)
+
+    # MENU DE USUÁRIO COMUM
+    else:
+        filtro = df_kpis[df_kpis['cliente_id'] == user['cliente_id']]
+        if filtro.empty: 
+            st.error("Cliente não encontrado.")
+            st.stop()
+        c_data = filtro.iloc[0]
 
 # ==============================================================================
-# ROTEADOR DE TELAS
+# 6. ROTEADOR DE TELAS
 # ==============================================================================
 
 # --- TELA 1: CADASTRO DE CLIENTE (Só Admin) ---
@@ -282,12 +206,10 @@ if perfil == 'admin' and st.session_state['modo_view'] == 'cadastro':
     with st.container(border=True):
         with st.form("form_novo_cliente_full"):
             col_a, col_b = st.columns(2)
-            
             with col_a:
                 st.subheader("Dados da Empresa")
                 empresa_nome = st.text_input("Nome da Empresa")
                 whats_id = st.text_input("WhatsApp ID (Ex: 551199999999)")
-            
             with col_b:
                 st.subheader("Login do Admin")
                 email_login = st.text_input("E-mail de Acesso")
@@ -301,7 +223,6 @@ if perfil == 'admin' and st.session_state['modo_view'] == 'cadastro':
                 else:
                     try:
                         with st.spinner("Criando banco de dados..."):
-                            # Config Padrão
                             cfg_padrao = {
                                 "horario_inicio": "09:00", "horario_fim": "18:00", 
                                 "sinal_minimo_reais": 100.0, "temperature": 0.5,
@@ -325,20 +246,17 @@ if perfil == 'admin' and st.session_state['modo_view'] == 'cadastro':
                                 time.sleep(1.5)
                                 st.session_state['modo_view'] = 'dashboard'
                                 st.rerun()
-                            else:
-                                st.error("Erro ao gerar ID da empresa.")
-                    except Exception as e:
-                        st.error(f"Erro técnico: {e}")
+                            else: st.error("Erro ao gerar ID da empresa.")
+                    except Exception as e: st.error(f"Erro técnico: {e}")
 
-# --- TELA 2: DASHBOARD (Seu código antigo entra AQUI) ---
+# --- TELA 2: DASHBOARD PRINCIPAL ---
 else:
-    # Verificação de segurança
+    # Verificação de segurança: se c_data for None (base vazia ou erro), para aqui.
     if c_data is None:
-        st.info("Nenhum cliente selecionado ou base vazia.")
+        st.info("Nenhum cliente selecionado ou base de dados vazia.")
         st.stop()
 
-    # --- INÍCIO DO DASHBOARD (Tudo indentado para a direita) ---
-    
+    # --- INÍCIO DO CONTEÚDO DO DASHBOARD ---
     c_id = int(c_data['cliente_id'])
     active = not bool(c_data.get('bot_pausado', False))
 
@@ -355,7 +273,7 @@ else:
 
     st.divider()
 
-    # --- CÁLCULO DE KPIS ---
+    # --- KPIS ---
     SALARIO_MINIMO = 1518.00
     HORAS_MENSAIS = 22 * 8
     CUSTO_HORA = SALARIO_MINIMO / HORAS_MENSAIS
@@ -373,13 +291,12 @@ else:
     
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- ABAS (TABS) ---
-    titulos_abas = ["📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"]
-    tabs = st.tabs(titulos_abas)
+    # --- ABAS ---
+    tabs = st.tabs(["📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
 
-    # ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
     # TAB 1: ANALYTICS
-    # ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
     with tabs[0]:
         try:
             r_s = supabase.table('agendamentos_salao').select('created_at, valor_sinal_registrado, status, produto_salao_id').eq('cliente_id', c_id).execute().data
@@ -420,8 +337,6 @@ else:
                     df_filt = df_filt[df_filt['p'].isin(prod_sel)]
 
                 st.markdown("<br>", unsafe_allow_html=True)
-
-                # Gráficos
                 c_g1, c_g2 = st.columns(2)
                 with c_g1:
                     st.markdown("##### 📈 Receita Diária")
@@ -432,7 +347,6 @@ else:
                         fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': C_TEXT_DARK}, xaxis=dict(showgrid=False, title=None), yaxis=dict(showgrid=False, showticklabels=False, title=None), margin=dict(l=0, r=0, t=20, b=20))
                         st.plotly_chart(fig, use_container_width=True)
                     else: st.info("Sem dados.")
-
                 with c_g2:
                     st.markdown("##### 📊 Volume")
                     df_vol = df_filt.groupby('dt').size().reset_index(name='qtd')
@@ -442,13 +356,12 @@ else:
                         fig_vol.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={'color': C_TEXT_DARK}, xaxis=dict(showgrid=False, title=None), yaxis=dict(showgrid=False, showticklabels=False, title=None), margin=dict(l=0, r=0, t=20, b=20))
                         st.plotly_chart(fig_vol, use_container_width=True)
                     else: st.info("Sem dados.")
-
-            else: st.info("Sem dados.")
+            else: st.info("Sem dados para exibir.")
         except Exception as e: st.error(f"Erro Visual: {e}")
 
-    # ------------------------------------------------------------------------------
-    # TAB 2: PRODUTOS (COM SINAL INDIVIDUAL)
-    # ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
+    # TAB 2: PRODUTOS
+    # --------------------------------------------------------------------------
     with tabs[1]:
         rp = supabase.table('produtos').select('id, nome, categoria, regras_preco').eq('cliente_id', c_id).order('nome').execute()
         lista_produtos = []
@@ -518,9 +431,9 @@ else:
                                     supabase.table('produtos').delete().eq('id', sel_id).execute()
                                     st.success("Tchau!"); time.sleep(1); st.rerun()
 
-    # ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
     # TAB 3: AGENDA
-    # ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
     with tabs[2]:
         try:
             res_prod = supabase.table('produtos').select('id, nome').eq('cliente_id', c_id).execute()
@@ -532,7 +445,6 @@ else:
         with cl:
             st.subheader("Agenda")
             lista_agenda, delete_map = [], {}
-            # Busca Serviços
             try:
                 rv = supabase.table('agendamentos').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(15).execute()
                 for i in (rv.data or []):
@@ -542,7 +454,6 @@ else:
                     delete_map[f"[S] {dt} {nm}"] = {'id': i['id'], 't': 'agendamentos'}
             except: pass
             
-            # Busca Eventos
             try:
                 re = supabase.table('agendamentos_salao').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(15).execute()
                 for i in (re.data or []):
@@ -573,7 +484,6 @@ else:
                 if st.form_submit_button("Agendar", type="primary"):
                     try:
                         dt_iso = datetime.combine(dt_d, dt_h).isoformat()
-                        # Tenta inserir como serviço (padrão simplificado)
                         supabase.table('agendamentos').insert({
                             "cliente_id": c_id, "data_hora_inicio": dt_iso, 
                             "cliente_final_waid": cli, "servico_id": map_prod_inv.get(item), 
@@ -582,48 +492,82 @@ else:
                         st.success("Feito!"); time.sleep(1); st.rerun()
                     except Exception as e: st.error(f"Erro: {e}")
 
-    # ------------------------------------------------------------------------------
-    # TAB 4: CÉREBRO (IA)
-    # ------------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
+    # TAB 4: CÉREBRO (CORRIGIDO)
+    # --------------------------------------------------------------------------
     with tabs[3]:
         st.subheader("Configuração da IA")
         try:
             res = supabase.table('clientes').select('config_fluxo, prompt_full').eq('id', c_id).execute()
             if res.data:
                 d = res.data[0]
+                
+                # Leitura segura do JSON
                 curr_c = d.get('config_fluxo')
-                if isinstance(curr_c, str): curr_c = json.loads(curr_c)
+                if isinstance(curr_c, str): 
+                    try: curr_c = json.loads(curr_c)
+                    except: curr_c = {}
                 if not isinstance(curr_c, dict): curr_c = {}
+                
                 prompt_atual = d.get('prompt_full') or ""
                 
                 c_p1, c_p2 = st.columns([2, 1])
+                
+                # Coluna da Esquerda: Prompt
                 with c_p1:
-                    new_p = st.text_area("Instruções (Prompt)", value=prompt_atual, height=500)
+                    new_p = st.text_area("Instruções do Sistema", value=prompt_atual, height=550)
+                
+                # Coluna da Direita: Ajustes Finos
                 with c_p2:
-                    st.write("**Parâmetros**")
-                    aud = st.toggle("Áudio", value=bool(curr_c.get('responde_em_audio', False)))
-                    voz = st.selectbox("Voz", ["alloy", "echo", "fable", "onyx", "nova", "shimmer"], index=0)
-                    temp = st.slider("Criatividade", 0.0, 1.0, float(curr_c.get('temperature', 0.5)))
+                    st.header("Configurações")
+                    st.subheader("🔊 Personalidade e Voz")
                     
-                    st.write("**Horário**")
-                    h_ini = st.selectbox("Início", [f"{i:02d}:00" for i in range(24)], index=9)
-                    h_fim = st.selectbox("Fim", [f"{i:02d}:00" for i in range(24)], index=18)
+                    # Leitura segura dos valores para os widgets
+                    val_audio = bool(curr_c.get('responde_em_audio', False))
+                    val_temp = float(curr_c.get('temperature', 0.5))
+                    val_voz = curr_c.get('openai_voice', 'alloy')
+
+                    aud = st.toggle("Respostas em Áudio", value=val_audio)
                     
-                    if st.button("💾 SALVAR TUDO", type="primary"):
-                        curr_c.update({
-                            "responde_em_audio": aud, "openai_voice": voz, "temperature": temp,
-                            "horario_inicio": h_ini, "horario_fim": h_fim
-                        })
-                        supabase.table('clientes').update({'prompt_full': new_p, 'config_fluxo': curr_c}).eq('id', c_id).execute()
-                        st.success("Salvo!"); time.sleep(1); st.rerun()
-        except Exception as e: st.error(f"Erro: {e}")
+                    vozes = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
+                    try: idx_voz = vozes.index(val_voz)
+                    except: idx_voz = 0
+                    voz = st.selectbox("Voz do Assistente", vozes, index=idx_voz)
+                    
+                    temp = st.slider("Tom de Voz", 0.0, 1.0, val_temp)
+                    if temp < 0.5: st.info("🤖 Modo Robótico")
+                    else: st.success("✨ Modo Humano")
 
+                    st.divider()
+                    st.subheader("🕒 Horário")
+                    
+                    lista_h = [f"{i:02d}:00" for i in range(24)]
+                    try: idx_h_i = lista_h.index(curr_c.get('horario_inicio', '09:00'))
+                    except: idx_h_i = 9
+                    try: idx_h_f = lista_h.index(curr_c.get('horario_fim', '18:00'))
+                    except: idx_h_f = 18
 
+                    h_ini = st.selectbox("Início", lista_h, index=idx_h_i)
+                    h_fim = st.selectbox("Fim", lista_h, index=idx_h_f)
+                    
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    
+                    if st.button("💾 SALVAR TUDO", type="primary", use_container_width=True):
+                        # Atualiza o dicionário local curr_c com os novos valores
+                        curr_c['responde_em_audio'] = aud
+                        curr_c['openai_voice'] = voz
+                        curr_c['temperature'] = temp
+                        curr_c['horario_inicio'] = h_ini
+                        curr_c['horario_fim'] = h_fim
+                        
+                        # Salva no banco
+                        supabase.table('clientes').update({
+                            'prompt_full': new_p, 
+                            'config_fluxo': curr_c
+                        }).eq('id', c_id).execute()
+                        
+                        st.success("Configurações Salvas!")
+                        time.sleep(1)
+                        st.rerun()
 
-
-
-
-
-
-
-
+        except Exception as e: st.error(f"Erro Cérebro: {e}")
