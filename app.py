@@ -302,55 +302,149 @@ with st.sidebar:
 # 7. ROTEADOR DE TELAS (MAIN CONTENT)
 # ==============================================================================
 
-# --- TELA 1: CADASTRO DE CLIENTE ---
+# --- TELA 1: CADASTRO DE CLIENTE (COMPLETO) ---
 if perfil == 'admin' and st.session_state['modo_view'] == 'cadastro':
-    st.title("🏢 Cadastro de Novo Cliente")
-    st.markdown("Crie uma nova empresa e o login do administrador dela.")
-    st.divider()
-
+    st.title("🏢 Cadastro de Novo Cliente (Full Setup)")
+    st.markdown("Configure a infraestrutura completa do novo inquilino.")
+    
     with st.container(border=True):
         with st.form("form_novo_cliente_full"):
-            col_a, col_b = st.columns(2)
-            with col_a:
-                st.subheader("Dados da Empresa")
+            
+            # --- 1. DADOS CADASTRAIS ---
+            st.markdown("### 1. 🏢 Dados da Empresa e Acesso")
+            c1, c2 = st.columns(2)
+            with c1:
                 empresa_nome = st.text_input("Nome da Empresa")
                 whats_id = st.text_input("WhatsApp ID (Ex: 551199999999)")
-            with col_b:
-                st.subheader("Login do Admin")
-                email_login = st.text_input("E-mail de Acesso")
+                plano_sel = st.selectbox("Plano", ["full", "basic", "trial"], index=0)
+            with c2:
+                email_login = st.text_input("E-mail de Login")
                 senha_login = st.text_input("Senha Inicial", type="password")
-            
+                humano_ativo = st.toggle("Atendimento Humano Ativo?", value=True)
+
+            st.divider()
+
+            # --- 2. FINANCEIRO (PIX E ADQUIRENTES) ---
+            st.markdown("### 2. 💰 Financeiro & Pagamentos")
+            cf1, cf2, cf3 = st.columns(3)
+            with cf1:
+                sinal_val = st.number_input("Sinal Mínimo (R$)", value=100.0, step=10.0)
+                checkout_auto = st.toggle("Checkout Automático?", value=False)
+            with cf2:
+                pix_key = st.text_input("Chave PIX")
+                gateway_sel = st.selectbox("Adquirente (Cartão)", ["Nenhum", "Mercado Pago", "InfinitePay", "Getnet"])
+            with cf3:
+                # Campo genérico para token, dependendo do gateway escolhido
+                gateway_token = st.text_input("Token/API Key do Adquirente", type="password", help="Cole a credencial de produção aqui")
+
+            st.divider()
+
+            # --- 3. INTELIGÊNCIA E COMPORTAMENTO ---
+            with st.expander("🧠 Configurações do Cérebro (IA)", expanded=False):
+                ci1, ci2 = st.columns(2)
+                with ci1:
+                    voz_ia = st.selectbox("Voz da OpenAI", ["alloy", "echo", "fable", "onyx", "nova", "shimmer"], index=0)
+                    temp_ia = st.slider("Criatividade (Temperatura)", 0.0, 1.0, 0.8)
+                with ci2:
+                    aceita_audio = st.toggle("Entende Áudio do Cliente?", value=True)
+                    responde_audio = st.toggle("Responde em Áudio?", value=False)
+                
+                st.markdown("**Instruções de Visão (Análise de Foto):**")
+                visao_txt = st.text_area("Prompt para fotos", value="FOTO DE REFERÊNCIA/INSPIRAÇÃO: Analise a decoração da foto (cores, tema, balões) e diga se conseguimos fazer algo parecido baseando-se no nosso catálogo.", height=80)
+                
+                btn_txt = st.text_input("Texto do Botão de Pedido", value="📝 Fazer Pedido")
+
+            # --- 4. FOLLOW-UP AUTOMÁTICO (COBRANÇA) ---
+            with st.expander("⏰ Follow-up Automático (Recuperação)", expanded=False):
+                f_ativo = st.checkbox("Ativar Follow-up Automático?", value=True)
+                cf_h1, cf_h2 = st.columns(2)
+                with cf_h1:
+                    fu_ini = st.time_input("Início dos Disparos", value=dt_time(9,0))
+                with cf_h2:
+                    fu_fim = st.time_input("Fim dos Disparos", value=dt_time(21,0))
+                
+                st.caption("As etapas padrão (30min, 60min, 24h) serão carregadas automaticamente. Edite no JSON se precisar mudar a lógica.")
+
             st.markdown("<br>", unsafe_allow_html=True)
             
-            if st.form_submit_button("✅ CADASTRAR SISTEMA", type="primary", use_container_width=True):
+            # --- SUBMIT ---
+            if st.form_submit_button("✅ CADASTRAR TUDO NO SUPABASE", type="primary", use_container_width=True):
                 if not empresa_nome or not email_login or not senha_login:
-                    st.warning("Preencha todos os campos.")
+                    st.warning("Preencha Nome, Login e Senha pelo menos.")
                 else:
                     try:
-                        with st.spinner("Criando infraestrutura..."):
-                            cfg_padrao = {
-                                "horario_inicio": "09:00", "horario_fim": "18:00", 
-                                "sinal_minimo_reais": 100.0, "temperature": 0.5,
-                                "responde_em_audio": False, "openai_voice": "alloy"
+                        with st.spinner("Subindo configuração completa..."):
+                            
+                            # 1. MONTAGEM DO JSON DE FOLLOW-UP (Padrão Rico)
+                            followup_structure = {
+                                "ativo": f_ativo,
+                                "horario_inicio": fu_ini.strftime("%H:%M"),
+                                "horario_fim": fu_fim.strftime("%H:%M"),
+                                "ignorar_horario_silencio": False,
+                                "system_prompt_template": "Você é o assistente de cobrança da {nome_empresa}. O cliente parou de responder.\nSua última msg foi: '{ultima_msg_bot}'.\n\nAgora, siga estritamente esta ordem: '{instrucao}'.\n\nREGRAS:\n- MÁXIMO 15 PALAVRAS.\n- NÃO mande links.\n- Se o cliente já fechou/desistiu, responda: CANCELAR_FLUXO",
+                                "etapas": [
+                                    {"nivel": 1, "minutos_apos_ultimo_input": 30, "instrucao_ia": "Seja gentil. O cliente parou de responder. Pergunte se ficou alguma dúvida."},
+                                    {"nivel": 2, "minutos_apos_ultimo_input": 60, "instrucao_ia": "Gere leve urgência. A data solicitada é muito procurada."},
+                                    {"nivel": 3, "minutos_apos_ultimo_input": 1440, "acao_sistema": "cancelar", "instrucao_ia": "Despedida profissional. Avise que o sistema liberou a data."}
+                                ]
                             }
+
+                            # 2. MONTAGEM DO JSON CONFIG_FLUXO (O Cérebro Completo)
+                            config_completa = {
+                                "plano": plano_sel,
+                                # Horários Gerais (Padrão Loja)
+                                "horario_inicio": "09:00", 
+                                "horario_fim": "18:00",
+                                
+                                # Financeiro
+                                "sinal_minimo_reais": sinal_val,
+                                "chave_pix": pix_key,
+                                "checkout_automatico": checkout_auto,
+                                "adquirente_ativo": gateway_sel,
+                                "adquirente_token": gateway_token, # Cuidado com segurança em prod
+                                
+                                # IA & Voz
+                                "temperature": temp_ia,
+                                "openai_voice": voz_ia,
+                                "aceita_audio": aceita_audio,
+                                "responde_em_audio": responde_audio,
+                                "atendimento_humano_ativo": humano_ativo,
+                                "instrucoes_visao_especificas": visao_txt,
+                                "btn_texto_pedido_kit": btn_txt,
+                                
+                                # Módulo Follow-up
+                                "followup_automatico": followup_structure
+                            }
+
+                            # 3. INSERT NO BANCO
                             res = supabase.table('clientes').insert({
-                                "nome_empresa": empresa_nome, "whatsapp_id": whats_id,
-                                "ativo": True, "bot_pausado": False, "config_fluxo": cfg_padrao
+                                "nome_empresa": empresa_nome,
+                                "whatsapp_id": whats_id,
+                                "ativo": True,
+                                "bot_pausado": False,
+                                "config_fluxo": config_completa # Payload Gigante aqui
                             }).execute()
                             
                             if res.data:
                                 new_id = res.data[0]['id']
+                                # Cria Login
                                 supabase.table('acesso_painel').insert({
-                                    "cliente_id": new_id, "email": email_login, "senha": senha_login,
-                                    "nome_usuario": f"Admin {empresa_nome}", "perfil": "user"
+                                    "cliente_id": new_id,
+                                    "email": email_login,
+                                    "senha": senha_login,
+                                    "nome_usuario": f"Admin {empresa_nome}",
+                                    "perfil": "user"
                                 }).execute()
                                 
-                                st.success("Cliente criado com sucesso!")
-                                time.sleep(1.5)
+                                st.toast(f"Cliente {empresa_nome} cadastrado com sucesso!", icon="🚀")
+                                time.sleep(2)
                                 st.session_state['modo_view'] = 'dashboard'
                                 st.rerun()
-                            else: st.error("Erro ao gerar ID da empresa.")
-                    except Exception as e: st.error(f"Erro técnico: {e}")
+                            else:
+                                st.error("Erro ao obter ID do novo cliente.")
+                                
+                    except Exception as e:
+                        st.error(f"Erro técnico no upload: {e}")
 
 # --- TELA 2: DASHBOARD ---
 else:
@@ -721,3 +815,4 @@ else:
                         st.rerun()
 
         except Exception as e: st.error(f"Erro Cérebro: {e}")
+
