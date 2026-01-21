@@ -626,7 +626,7 @@ else:
     # --------------------------------------------------------------------------
     # TAB 2: ANALYTICS (GRÁFICOS RESTAURADOS)
     # --------------------------------------------------------------------------
-    with tabs[0]:
+    with tabs[2]:
         try:
             r_s = supabase.table('agendamentos_salao').select('created_at, valor_sinal_registrado, status, produto_salao_id').eq('cliente_id', c_id).execute().data
             r_p = supabase.table('agendamentos').select('created_at, valor_sinal_registrado, status, servico_id').eq('cliente_id', c_id).execute().data
@@ -721,7 +721,7 @@ else:
     # --------------------------------------------------------------------------
     # TAB 3: PRODUTOS
     # --------------------------------------------------------------------------
-    with tabs[1]:
+    with tabs[3]:
         rp = supabase.table('produtos').select('id, nome, categoria, regras_preco').eq('cliente_id', c_id).order('nome').execute()
         lista_produtos = []
         if rp.data:
@@ -793,7 +793,7 @@ else:
     # --------------------------------------------------------------------------
     # TAB 4: AGENDA
     # --------------------------------------------------------------------------
-    with tabs[2]:
+    with tabs[4]:
         try:
             res_prod = supabase.table('produtos').select('id, nome').eq('cliente_id', c_id).execute()
             map_prod = {p['id']: p['nome'] for p in res_prod.data} if res_prod.data else {}
@@ -854,7 +854,7 @@ else:
     # --------------------------------------------------------------------------
     # TAB 5: CÉREBRO (IA - Harmonizado e com Nomes das Vozes)
     # --------------------------------------------------------------------------
-    with tabs[3]:
+    with tabs[5]:
         st.subheader("Configuração da IA")
         try:
             res = supabase.table('clientes').select('config_fluxo, prompt_full').eq('id', c_id).execute()
@@ -949,6 +949,7 @@ else:
                         st.rerun()
 
         except Exception as e: st.error(f"Erro Cérebro: {e}")
+
 
 
 
