@@ -487,10 +487,144 @@ else:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # --- ABAS ---
-    tabs = st.tabs(["📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
+    tabs = st.tabs(["💰 Funil", "💬 Inbox", "📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
 
     # --------------------------------------------------------------------------
-    # TAB 1: ANALYTICS (GRÁFICOS RESTAURADOS)
+    # TAB 0: FUNIL DE VENDAS (KANBAN)
+    # --------------------------------------------------------------------------
+    with tabs[0]:
+        st.subheader("Funil de Vendas")
+        
+        # 1. Busca Dados Unificados (Serviços e Eventos)
+        leads_list = []
+        try:
+            # Serviços
+            rv = supabase.table('agendamentos').select('id, cliente_final_waid, status, valor_total_registrado, servico_id, data_hora_inicio').eq('cliente_id', c_id).execute()
+            for i in (rv.data or []):
+                leads_list.append({
+                    'id': i['id'], 'tipo': 'servico', 'cliente': i.get('cliente_final_waid', 'Sem Nome'),
+                    'status': i.get('status', 'Pendente'), 'valor': i.get('valor_total_registrado', 0),
+                    'data': pd.to_datetime(i.get('data_hora_inicio')).strftime('%d/%m %H:%M')
+                })
+            # Eventos
+            re = supabase.table('agendamentos_salao').select('id, cliente_final_waid, status, valor_total_registrado, produto_salao_id, data_reserva').eq('cliente_id', c_id).execute()
+            for i in (re.data or []):
+                leads_list.append({
+                    'id': i['id'], 'tipo': 'salao', 'cliente': i.get('cliente_final_waid', 'Sem Nome'),
+                    'status': i.get('status', 'Pendente'), 'valor': i.get('valor_total_registrado', 0),
+                    'data': i.get('data_reserva')
+                })
+        except Exception as e: st.error(f"Erro ao carregar leads: {e}")
+
+        # 2. Renderiza Colunas do Kanban
+        if leads_list:
+            cols = st.columns(3)
+            status_map = {
+                "Novos / Pendentes": ["Pendente", "Novo", "Aguardando"],
+                "Confirmados / Pagos": ["Confirmado", "Pago", "Agendado"],
+                "Perdidos / Cancelados": ["Cancelado", "Desistiu"]
+            }
+            
+            # Cores para cada coluna
+            colors = ["#FFD700", "#00C851", "#FF4444"] # Amarelo, Verde, Vermelho
+            
+            for idx, (col_name, status_keys) in enumerate(status_map.items()):
+                with cols[idx]:
+                    st.markdown(f"<div style='border-top: 4px solid {colors[idx]}; padding: 10px; background: #F8F9FA; border-radius: 5px; text-align: center;'><b>{col_name}</b></div>", unsafe_allow_html=True)
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    
+                    # Filtra cards desta coluna
+                    cards = [l for l in leads_list if l['status'] in status_keys]
+                    
+                    for card in cards:
+                        with st.container(border=True):
+                            st.markdown(f"**{card['cliente']}**")
+                            st.caption(f"📅 {card['data']} | 💰 R$ {card['valor']}")
+                            
+                            # Botões de Ação Rápida
+                            c_btn_1, c_btn_2 = st.columns(2)
+                            with c_btn_1:
+                                if st.button("✅", key=f"apv_{card['id']}_{card['tipo']}", help="Confirmar"):
+                                    table = 'agendamentos' if card['tipo'] == 'servico' else 'agendamentos_salao'
+                                    supabase.table(table).update({'status': 'Confirmado'}).eq('id', card['id']).execute()
+                                    st.rerun()
+                            with c_btn_2:
+                                if st.button("❌", key=f"rej_{card['id']}_{card['tipo']}", help="Cancelar"):
+                                    table = 'agendamentos' if card['tipo'] == 'servico' else 'agendamentos_salao'
+                                    supabase.table(table).update({'status': 'Cancelado'}).eq('id', card['id']).execute()
+                                    st.rerun()
+        else:
+            st.info("Nenhum lead ou agendamento encontrado para o funil.")
+
+    # --------------------------------------------------------------------------
+    # TAB 1: INBOX (BATE-PAPO HUMANO)
+    # --------------------------------------------------------------------------
+    with tabs[1]:
+        st.subheader("💬 Atendimento Humano")
+        
+        # Layout: Lista de Conversas (Esq) x Chat Ativo (Dir)
+        c_inbox_list, c_inbox_chat = st.columns([1, 2])
+        
+        # --- COLUNA 1: SELETOR DE CONVERSA ---
+        with c_inbox_list:
+            st.markdown("##### Conversas Recentes")
+            # Tenta buscar clientes únicos que interagiram
+            try:
+                # Mock: Como não temos a tabela 'mensagens' oficial ainda, vamos usar os clientes dos agendamentos
+                # Num cenário real, aqui seria: supabase.table('mensagens').select('cliente_waid').distinct()...
+                lista_clientes_chat = list(set([l['cliente'] for l in leads_list])) # Usa a lista do funil
+                
+                if lista_clientes_chat:
+                    cliente_ativo = st.radio("Selecione:", lista_clientes_chat, label_visibility="collapsed")
+                else:
+                    cliente_ativo = None
+                    st.caption("Sem conversas ativas.")
+            except:
+                cliente_ativo = None
+        
+        # --- COLUNA 2: ÁREA DE CHAT ---
+        with c_inbox_chat:
+            with st.container(border=True):
+                if cliente_ativo:
+                    st.markdown(f"**Conversando com: {cliente_ativo}**")
+                    st.divider()
+                    
+                    # Área de Mensagens (MOCK - Simulação Visual)
+                    # Num cenário real: buscar msg no supabase where cliente_waid = cliente_ativo
+                    
+                    # Exemplo visual de como ficaria
+                    with st.chat_message("user"):
+                        st.write(f"Olá, gostaria de saber o preço do pacote.")
+                    
+                    with st.chat_message("assistant"):
+                        st.write(f"Olá! Sou o Otti. Para passar o valor exato, preciso saber a data.")
+                        
+                    # Se tiver histórico real, iterar aqui:
+                    # for msg in historico:
+                    #    with st.chat_message(msg['role']): st.write(msg['content'])
+                    
+                    st.markdown("<br><br>", unsafe_allow_html=True)
+                    
+                    # Input de Resposta Humana
+                    msg_humana = st.chat_input("Digite sua resposta (Envia via WhatsApp)...")
+                    if msg_humana:
+                        # AQUI ENTRARIA O ENVIO PARA A API DO WHATSAPP
+                        # ex: requests.post(api_url, json={"to": cliente_ativo, "text": msg_humana})
+                        
+                        # Salva no banco como 'sent' (Exemplo)
+                        # supabase.table('mensagens').insert({...})
+                        
+                        st.toast("Mensagem enviada! (Simulação)", icon="🚀")
+                        # Pausa o Bot automaticamente
+                        try:
+                            supabase.table('clientes').update({'bot_pausado': True}).eq('id', c_id).execute()
+                            st.toast("Bot pausado para este cliente.", icon="⏸️")
+                        except: pass
+                else:
+                    st.info("Selecione uma conversa ao lado para responder.")
+
+    # --------------------------------------------------------------------------
+    # TAB 2: ANALYTICS (GRÁFICOS RESTAURADOS)
     # --------------------------------------------------------------------------
     with tabs[0]:
         try:
@@ -585,7 +719,7 @@ else:
         except Exception as e: st.error(f"Erro Visual: {e}")
 
     # --------------------------------------------------------------------------
-    # TAB 2: PRODUTOS
+    # TAB 3: PRODUTOS
     # --------------------------------------------------------------------------
     with tabs[1]:
         rp = supabase.table('produtos').select('id, nome, categoria, regras_preco').eq('cliente_id', c_id).order('nome').execute()
@@ -657,7 +791,7 @@ else:
                                     st.success("Tchau!"); time.sleep(1); st.rerun()
 
     # --------------------------------------------------------------------------
-    # TAB 3: AGENDA
+    # TAB 4: AGENDA
     # --------------------------------------------------------------------------
     with tabs[2]:
         try:
@@ -718,7 +852,7 @@ else:
                     except Exception as e: st.error(f"Erro: {e}")
 
     # --------------------------------------------------------------------------
-    # TAB 4: CÉREBRO (IA - Harmonizado e com Nomes das Vozes)
+    # TAB 5: CÉREBRO (IA - Harmonizado e com Nomes das Vozes)
     # --------------------------------------------------------------------------
     with tabs[3]:
         st.subheader("Configuração da IA")
@@ -815,5 +949,6 @@ else:
                         st.rerun()
 
         except Exception as e: st.error(f"Erro Cérebro: {e}")
+
 
 
