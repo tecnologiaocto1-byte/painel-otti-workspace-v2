@@ -491,68 +491,116 @@ else:
     tabs = st.tabs(["💰 Funil", "💬 Inbox", "📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
 
     # --------------------------------------------------------------------------
-    # TAB 0: FUNIL DE VENDAS (KANBAN)
+    # TAB 0: FUNIL DE VENDAS (KANBAN MELHORADO)
     # --------------------------------------------------------------------------
     with tabs[0]:
         st.subheader("Funil de Vendas")
         
-        # 1. Busca Dados Unificados (Serviços e Eventos)
+        # 1. PREPARAÇÃO: Mapear Nomes dos Produtos (Para não aparecer só ID ou vazio)
+        try:
+            res_prod = supabase.table('produtos').select('id, nome').eq('cliente_id', c_id).execute()
+            # Cria um dicionário {id: 'Nome do Produto'}
+            map_produtos = {p['id']: p['nome'] for p in res_prod.data} if res_prod.data else {}
+        except: 
+            map_produtos = {}
+
+        # 2. BUSCA DADOS UNIFICADOS
         leads_list = []
         try:
-            # Serviços
+            # A. Busca Serviços (Agendamentos)
             rv = supabase.table('agendamentos').select('id, cliente_final_waid, status, valor_total_registrado, servico_id, data_hora_inicio').eq('cliente_id', c_id).execute()
             for i in (rv.data or []):
+                # Tenta pegar o nome do produto pelo ID, se falhar usa genérico
+                nome_item = map_produtos.get(i.get('servico_id'), 'Serviço/Agendamento')
+                
                 leads_list.append({
-                    'id': i['id'], 'tipo': 'servico', 'cliente': i.get('cliente_final_waid', 'Sem Nome'),
-                    'status': i.get('status', 'Pendente'), 'valor': i.get('valor_total_registrado', 0),
-                    'data': pd.to_datetime(i.get('data_hora_inicio')).strftime('%d/%m %H:%M')
+                    'id': i['id'], 
+                    'tipo': 'servico', 
+                    'cliente': i.get('cliente_final_waid', 'Desconhecido'),
+                    'produto': nome_item, # <--- AQUI ESTÁ O SEGREDO
+                    'status': i.get('status', 'Pendente'), 
+                    'valor': float(i.get('valor_total_registrado', 0) or 0),
+                    'data': pd.to_datetime(i.get('data_hora_inicio')).strftime('%d/%m às %H:%M')
                 })
-            # Eventos
+
+            # B. Busca Eventos (Salão)
             re = supabase.table('agendamentos_salao').select('id, cliente_final_waid, status, valor_total_registrado, produto_salao_id, data_reserva').eq('cliente_id', c_id).execute()
             for i in (re.data or []):
+                nome_item = map_produtos.get(i.get('produto_salao_id'), 'Reserva Salão')
+                
                 leads_list.append({
-                    'id': i['id'], 'tipo': 'salao', 'cliente': i.get('cliente_final_waid', 'Sem Nome'),
-                    'status': i.get('status', 'Pendente'), 'valor': i.get('valor_total_registrado', 0),
+                    'id': i['id'], 
+                    'tipo': 'salao', 
+                    'cliente': i.get('cliente_final_waid', 'Desconhecido'),
+                    'produto': nome_item, # <--- AQUI ESTÁ O SEGREDO
+                    'status': i.get('status', 'Pendente'), 
+                    'valor': float(i.get('valor_total_registrado', 0) or 0),
                     'data': i.get('data_reserva')
                 })
-        except Exception as e: st.error(f"Erro ao carregar leads: {e}")
+        except Exception as e: 
+            st.error(f"Erro ao carregar funil: {e}")
 
-        # 2. Renderiza Colunas do Kanban
+        # 3. RENDERIZA O KANBAN VISUAL
         if leads_list:
+            # Definição das Colunas
             cols = st.columns(3)
             status_map = {
-                "Novos / Pendentes": ["Pendente", "Novo", "Aguardando"],
-                "Confirmados / Pagos": ["Confirmado", "Pago", "Agendado"],
-                "Perdidos / Cancelados": ["Cancelado", "Desistiu"]
+                "🟡 Novos / Pendentes": ["Pendente", "Novo", "Aguardando", None],
+                "🟢 Confirmados / Pagos": ["Confirmado", "Pago", "Agendado"],
+                "🔴 Perdidos / Cancelados": ["Cancelado", "Desistiu"]
             }
             
-            # Cores para cada coluna
-            colors = ["#FFD700", "#00C851", "#FF4444"] # Amarelo, Verde, Vermelho
+            # Cores da borda superior de cada coluna
+            colors = ["#FFD700", "#00C851", "#FF4444"] 
             
+            # Loop para criar as 3 colunas
             for idx, (col_name, status_keys) in enumerate(status_map.items()):
                 with cols[idx]:
-                    st.markdown(f"<div style='border-top: 4px solid {colors[idx]}; padding: 10px; background: #F8F9FA; border-radius: 5px; text-align: center;'><b>{col_name}</b></div>", unsafe_allow_html=True)
-                    st.markdown("<br>", unsafe_allow_html=True)
+                    # Cabeçalho da Coluna Estilizado
+                    st.markdown(f"""
+                        <div style='border-top: 4px solid {colors[idx]}; padding: 10px; background: #F8F9FA; border-radius: 5px; text-align: center; margin-bottom: 10px;'>
+                            <strong style='color: #333;'>{col_name}</strong>
+                        </div>
+                    """, unsafe_allow_html=True)
                     
-                    # Filtra cards desta coluna
+                    # Filtra os cards que pertencem a esta coluna
                     cards = [l for l in leads_list if l['status'] in status_keys]
                     
+                    if not cards:
+                        st.caption("Vazio")
+                    
                     for card in cards:
+                        # O CARD VISUAL EM SI
                         with st.container(border=True):
-                            st.markdown(f"**{card['cliente']}**")
-                            st.caption(f"📅 {card['data']} | 💰 R$ {card['valor']}")
+                            # Título: O Produto (Destaque Maior)                             st.markdown(f"##### 📦 {card['produto']}")
                             
-                            # Botões de Ação Rápida
+                            # Dados do Cliente e Data
+                            st.markdown(f"👤 **{card['cliente']}**")
+                            st.caption(f"📅 {card['data']}")
+                            
+                            # Preço (Com destaque se for > 0)
+                            if card['valor'] > 0:
+                                st.markdown(f"💰 <span style='color:green; font-weight:bold'>R$ {card['valor']:,.2f}</span>", unsafe_allow_html=True)
+                            else:
+                                st.caption("💰 A definir / R$ 0,00")
+                            
+                            st.divider()
+                            
+                            # Botões de Ação
                             c_btn_1, c_btn_2 = st.columns(2)
                             with c_btn_1:
-                                if st.button("✅", key=f"apv_{card['id']}_{card['tipo']}", help="Confirmar"):
+                                if st.button("Aprovar", key=f"apv_{card['id']}_{card['tipo']}", use_container_width=True):
                                     table = 'agendamentos' if card['tipo'] == 'servico' else 'agendamentos_salao'
                                     supabase.table(table).update({'status': 'Confirmado'}).eq('id', card['id']).execute()
+                                    st.toast("Aprovado!", icon="✅")
+                                    time.sleep(1)
                                     st.rerun()
                             with c_btn_2:
-                                if st.button("❌", key=f"rej_{card['id']}_{card['tipo']}", help="Cancelar"):
+                                if st.button("Cancelar", key=f"rej_{card['id']}_{card['tipo']}", use_container_width=True):
                                     table = 'agendamentos' if card['tipo'] == 'servico' else 'agendamentos_salao'
                                     supabase.table(table).update({'status': 'Cancelado'}).eq('id', card['id']).execute()
+                                    st.toast("Cancelado.", icon="❌")
+                                    time.sleep(1)
                                     st.rerun()
         else:
             st.info("Nenhum lead ou agendamento encontrado para o funil.")
@@ -986,6 +1034,7 @@ else:
                         st.rerun()
 
         except Exception as e: st.error(f"Erro Cérebro: {e}")
+
 
 
 
