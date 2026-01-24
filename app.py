@@ -7,6 +7,7 @@ import json
 import time
 import os
 import base64
+import requests
 from datetime import datetime, timedelta, time as dt_time
 
 # ==============================================================================
@@ -985,6 +986,7 @@ else:
                         st.rerun()
 
         except Exception as e: st.error(f"Erro Cérebro: {e}")
+
 
 
 
