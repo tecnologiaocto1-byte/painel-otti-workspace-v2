@@ -607,21 +607,41 @@ else:
                     
                     # Input de Resposta Humana
                     msg_humana = st.chat_input("Digite sua resposta (Envia via WhatsApp)...")
+                    
                     if msg_humana:
-                        # AQUI ENTRARIA O ENVIO PARA A API DO WHATSAPP
-                        # ex: requests.post(api_url, json={"to": cliente_ativo, "text": msg_humana})
-                        
-                        # Salva no banco como 'sent' (Exemplo)
-                        # supabase.table('mensagens').insert({...})
-                        
-                        st.toast("Mensagem enviada! (Simulação)", icon="🚀")
-                        # Pausa o Bot automaticamente
-                        try:
-                            supabase.table('clientes').update({'bot_pausado': True}).eq('id', c_id).execute()
-                            st.toast("Bot pausado para este cliente.", icon="⏸️")
-                        except: pass
-                else:
-                    st.info("Selecione uma conversa ao lado para responder.")
+                        # 1. MOSTRA VISUALMENTE NO CHAT IMEDIATAMENTE
+                        with chat_container:
+                            with st.chat_message("assistant"): st.write(msg_humana)
+
+                        # 2. LÓGICA DE ENVIO
+                        if z_instancia and z_token:
+                            try:
+                                # Monta a URL usando as variáveis que pegamos da raiz
+                                url_zapi = f"https://api.z-api.io/instances/{z_instancia}/token/{z_token}/send-text"
+                                
+                                payload = {
+                                    "phone": cliente_ativo,
+                                    "message": msg_humana
+                                }
+                                
+                                headers = {}
+                                if z_client_token:
+                                    headers["Client-Token"] = z_client_token
+                                
+                                # DISPARA A REQUISIÇÃO
+                                requests.post(url_zapi, json=payload, headers=headers)
+                                
+                                st.toast("Enviado via Z-API! 🚀", icon="✅")
+                                
+                                # PAUSA O BOT SE NECESSÁRIO (Se o botão estiver desligado)
+                                if not bot_on:
+                                    supabase.table('clientes').update({'bot_pausado': True}).eq('id', c_id).execute()
+                                    st.toast("Bot pausado automaticamente.", icon="⏸️")
+                                    
+                            except Exception as e:
+                                st.error(f"Erro Z-API: {e}")
+                        else:
+                            st.error("⚠️ Cliente sem instância Z-API configurada.")
 
     # --------------------------------------------------------------------------
     # TAB 2: ANALYTICS (GRÁFICOS RESTAURADOS)
@@ -949,6 +969,7 @@ else:
                         st.rerun()
 
         except Exception as e: st.error(f"Erro Cérebro: {e}")
+
 
 
 
