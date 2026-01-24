@@ -586,37 +586,38 @@ else:
         with c_inbox_chat:
             with st.container(border=True):
                 if cliente_ativo:
-                    st.markdown(f"**Conversando com: {cliente_ativo}**")
+                    # --- CABEÇALHO DO CHAT ---
+                    h1, h2 = st.columns([2,1])
+                    with h1: st.markdown(f"### 👤 {cliente_ativo}")
+                    with h2:
+                        # Botão Ligar/Desligar Bot
+                        bot_on = st.toggle("🤖 Bot Ativo", value=True)
+                        if not bot_on: st.caption("🔴 Modo Humano")
+                        else: st.caption("🟢 Modo Bot")
+
                     st.divider()
                     
-                    # Área de Mensagens (MOCK - Simulação Visual)
-                    # Num cenário real: buscar msg no supabase where cliente_waid = cliente_ativo
+                    # --- ÁREA DE MENSAGENS (CRIAÇÃO DO CONTAINER) ---
+                    # ESSA É A LINHA QUE ESTAVA FALTANDO OU FORA DE LUGAR:
+                    chat_container = st.container(height=350)
                     
-                    # Exemplo visual de como ficaria
-                    with st.chat_message("user"):
-                        st.write(f"Olá, gostaria de saber o preço do pacote.")
-                    
-                    with st.chat_message("assistant"):
-                        st.write(f"Olá! Sou o Otti. Para passar o valor exato, preciso saber a data.")
-                        
-                    # Se tiver histórico real, iterar aqui:
-                    # for msg in historico:
-                    #    with st.chat_message(msg['role']): st.write(msg['content'])
-                    
-                    st.markdown("<br><br>", unsafe_allow_html=True)
-                    
-                    # Input de Resposta Humana
-                    msg_humana = st.chat_input("Digite sua resposta (Envia via WhatsApp)...")
+                    # Mostra histórico (Mock visual por enquanto)
+                    with chat_container:
+                        with st.chat_message("user"): st.write("Gostaria de agendar.")
+                        with st.chat_message("assistant"): st.write("Claro! Qual dia?")
+                        if not bot_on: st.warning("Bot pausado. Você assume.")
+
+                    # --- INPUT E ENVIO ---
+                    msg_humana = st.chat_input(f"Enviar para {cliente_ativo}...")
                     
                     if msg_humana:
-                        # 1. MOSTRA VISUALMENTE NO CHAT IMEDIATAMENTE
+                        # 1. MOSTRA VISUALMENTE (Agora a variável existe!)
                         with chat_container:
                             with st.chat_message("assistant"): st.write(msg_humana)
-
-                        # 2. LÓGICA DE ENVIO
+                        
+                        # 2. DISPARA REQUISIÇÃO Z-API
                         if z_instancia and z_token:
                             try:
-                                # Monta a URL usando as variáveis que pegamos da raiz
                                 url_zapi = f"https://api.z-api.io/instances/{z_instancia}/token/{z_token}/send-text"
                                 
                                 payload = {
@@ -628,12 +629,11 @@ else:
                                 if z_client_token:
                                     headers["Client-Token"] = z_client_token
                                 
-                                # DISPARA A REQUISIÇÃO
                                 requests.post(url_zapi, json=payload, headers=headers)
                                 
                                 st.toast("Enviado via Z-API! 🚀", icon="✅")
                                 
-                                # PAUSA O BOT SE NECESSÁRIO (Se o botão estiver desligado)
+                                # Pausa o bot se estiver no modo manual
                                 if not bot_on:
                                     supabase.table('clientes').update({'bot_pausado': True}).eq('id', c_id).execute()
                                     st.toast("Bot pausado automaticamente.", icon="⏸️")
@@ -641,7 +641,9 @@ else:
                             except Exception as e:
                                 st.error(f"Erro Z-API: {e}")
                         else:
-                            st.error("⚠️ Cliente sem instância Z-API configurada.")
+                            st.error("⚠️ Instância Z-API não configurada. Verifique o cadastro do cliente.")
+                else:
+                    st.info("Selecione um cliente na lista ao lado.")
 
     # --------------------------------------------------------------------------
     # TAB 2: ANALYTICS (GRÁFICOS RESTAURADOS)
@@ -969,6 +971,7 @@ else:
                         st.rerun()
 
         except Exception as e: st.error(f"Erro Cérebro: {e}")
+
 
 
 
