@@ -556,52 +556,66 @@ else:
         else:
             st.info("Nenhum lead ou agendamento encontrado para o funil.")
 
-    # --------------------------------------------------------------------------
-    # TAB 1: INBOX (BATE-PAPO HUMANO)
+   # --------------------------------------------------------------------------
+    # TAB 1: INBOX (ATENDIMENTO HUMANO) - BLINDADO
     # --------------------------------------------------------------------------
     with tabs[1]:
-        st.subheader("💬 Atendimento Humano")
+        st.subheader("💬 Atendimento Humano (Z-API)")
         
-        # Layout: Lista de Conversas (Esq) x Chat Ativo (Dir)
+        # 1. INICIALIZAÇÃO SEGURA (Pra não dar NameError nunca mais)
+        z_instancia = ""
+        z_token = ""
+        z_client_token = ""
+
+        # 2. BUSCA CREDENCIAIS NO BANCO (Localmente nesta aba)
+        try:
+            # Busca os dados frescos deste cliente específico
+            dados_zapi = supabase.table('clientes').select('id_instance, zapi_token, client_token').eq('id', c_id).execute().data
+            if dados_zapi:
+                z_instancia = dados_zapi[0].get('id_instance', '')
+                z_token = dados_zapi[0].get('zapi_token', '')
+                z_client_token = dados_zapi[0].get('client_token', '')
+        except Exception as e:
+            st.error(f"Erro ao carregar credenciais Z-API: {e}")
+
+        # --- LAYOUT DO CHAT ---
         c_inbox_list, c_inbox_chat = st.columns([1, 2])
         
-        # --- COLUNA 1: SELETOR DE CONVERSA ---
+        # COLUNA ESQUERDA: LISTA
         with c_inbox_list:
-            st.markdown("##### Conversas Recentes")
-            # Tenta buscar clientes únicos que interagiram
+            st.markdown("##### 📥 Conversas")
             try:
-                # Mock: Como não temos a tabela 'mensagens' oficial ainda, vamos usar os clientes dos agendamentos
-                # Num cenário real, aqui seria: supabase.table('mensagens').select('cliente_waid').distinct()...
-                lista_clientes_chat = list(set([l['cliente'] for l in leads_list])) # Usa a lista do funil
-                
+                # Pega lista única de clientes do funil (leads_list deve estar carregado na Tab 0 ou antes)
+                # Se der erro aqui, criamos uma lista vazia
+                if 'leads_list' in locals() and leads_list:
+                    lista_clientes_chat = list(set([l['cliente'] for l in leads_list])) 
+                else:
+                    lista_clientes_chat = []
+
                 if lista_clientes_chat:
                     cliente_ativo = st.radio("Selecione:", lista_clientes_chat, label_visibility="collapsed")
                 else:
                     cliente_ativo = None
-                    st.caption("Sem conversas ativas.")
-            except:
+                    st.caption("Nenhuma conversa ativa.")
+            except: 
                 cliente_ativo = None
         
-        # --- COLUNA 2: ÁREA DE CHAT ---
+        # COLUNA DIREITA: CHAT
         with c_inbox_chat:
             with st.container(border=True):
                 if cliente_ativo:
-                    # --- CABEÇALHO DO CHAT ---
+                    # Cabeçalho
                     h1, h2 = st.columns([2,1])
                     with h1: st.markdown(f"### 👤 {cliente_ativo}")
                     with h2:
-                        # Botão Ligar/Desligar Bot
-                        bot_on = st.toggle("🤖 Bot Ativo", value=True)
+                        bot_on = st.toggle("🤖 Bot Ativo", value=True, key=f"bot_state_{cliente_ativo}")
                         if not bot_on: st.caption("🔴 Modo Humano")
                         else: st.caption("🟢 Modo Bot")
 
                     st.divider()
                     
-                    # --- ÁREA DE MENSAGENS (CRIAÇÃO DO CONTAINER) ---
-                    # ESSA É A LINHA QUE ESTAVA FALTANDO OU FORA DE LUGAR:
+                    # Área de Mensagens
                     chat_container = st.container(height=350)
-                    
-                    # Mostra histórico (Mock visual por enquanto)
                     with chat_container:
                         with st.chat_message("user"): st.write("Gostaria de agendar.")
                         with st.chat_message("assistant"): st.write("Claro! Qual dia?")
@@ -611,11 +625,11 @@ else:
                     msg_humana = st.chat_input(f"Enviar para {cliente_ativo}...")
                     
                     if msg_humana:
-                        # 1. MOSTRA VISUALMENTE (Agora a variável existe!)
+                        # 1. Mostra na tela
                         with chat_container:
                             with st.chat_message("assistant"): st.write(msg_humana)
                         
-                        # 2. DISPARA REQUISIÇÃO Z-API
+                        # 2. Verifica se temos as credenciais antes de tentar enviar
                         if z_instancia and z_token:
                             try:
                                 url_zapi = f"https://api.z-api.io/instances/{z_instancia}/token/{z_token}/send-text"
@@ -629,21 +643,21 @@ else:
                                 if z_client_token:
                                     headers["Client-Token"] = z_client_token
                                 
+                                # Dispara
                                 requests.post(url_zapi, json=payload, headers=headers)
-                                
                                 st.toast("Enviado via Z-API! 🚀", icon="✅")
                                 
-                                # Pausa o bot se estiver no modo manual
+                                # Pausa o bot se necessário
                                 if not bot_on:
                                     supabase.table('clientes').update({'bot_pausado': True}).eq('id', c_id).execute()
-                                    st.toast("Bot pausado automaticamente.", icon="⏸️")
+                                    st.toast("Bot pausado.", icon="⏸️")
                                     
                             except Exception as e:
-                                st.error(f"Erro Z-API: {e}")
+                                st.error(f"Erro na requisição: {e}")
                         else:
-                            st.error("⚠️ Instância Z-API não configurada. Verifique o cadastro do cliente.")
+                            st.error("⚠️ Sem credenciais Z-API. Verifique o cadastro do cliente.")
                 else:
-                    st.info("Selecione um cliente na lista ao lado.")
+                    st.info("Selecione um cliente ao lado.")
 
     # --------------------------------------------------------------------------
     # TAB 2: ANALYTICS (GRÁFICOS RESTAURADOS)
@@ -971,6 +985,7 @@ else:
                         st.rerun()
 
         except Exception as e: st.error(f"Erro Cérebro: {e}")
+
 
 
 
