@@ -491,158 +491,188 @@ else:
     tabs = st.tabs(["💰 Funil", "💬 Inbox", "📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
 
     # --------------------------------------------------------------------------
-    # TAB 0: FUNIL DE VENDAS (KANBAN MELHORADO)
+    # TAB 0: FUNIL DE VENDAS (KANBAN DETALHADO + LINK ZAP)
     # --------------------------------------------------------------------------
     with tabs[0]:
         st.subheader("Funil de Vendas")
         
-        # 1. PREPARAÇÃO: Mapear Nomes dos Produtos (Para não aparecer só ID ou vazio)
+        # 1. PREPARAÇÃO: Mapear Nomes dos Produtos
         try:
             res_prod = supabase.table('produtos').select('id, nome').eq('cliente_id', c_id).execute()
-            # Cria um dicionário {id: 'Nome do Produto'}
             map_produtos = {p['id']: p['nome'] for p in res_prod.data} if res_prod.data else {}
-        except: 
-            map_produtos = {}
+        except: map_produtos = {}
 
-        # 2. BUSCA DADOS UNIFICADOS
+        # 2. BUSCA DADOS
         leads_list = []
         try:
-            # A. Busca Serviços (Agendamentos)
+            # A. Serviços
             rv = supabase.table('agendamentos').select('id, cliente_final_waid, status, valor_total_registrado, servico_id, data_hora_inicio').eq('cliente_id', c_id).execute()
             for i in (rv.data or []):
-                # Tenta pegar o nome do produto pelo ID, se falhar usa genérico
-                nome_item = map_produtos.get(i.get('servico_id'), 'Serviço/Agendamento')
+                # TRUQUE: Se o nome do produto falhar, mostramos o ID pra você saber o que é
+                p_nome = map_produtos.get(i.get('servico_id'), f"Serviço ID {i.get('servico_id')}")
+                # TRUQUE 2: Garante que o telefone apareça
+                telefone = i.get('cliente_final_waid')
+                if not telefone: telefone = "Sem Número"
                 
                 leads_list.append({
-                    'id': i['id'], 
-                    'tipo': 'servico', 
-                    'cliente': i.get('cliente_final_waid', 'Desconhecido'),
-                    'produto': nome_item, # <--- AQUI ESTÁ O SEGREDO
+                    'id': i['id'], 'tipo': 'servico', 
+                    'cliente': telefone, # Agora força mostrar o telefone
+                    'produto': p_nome,
                     'status': i.get('status', 'Pendente'), 
                     'valor': float(i.get('valor_total_registrado', 0) or 0),
-                    'data': pd.to_datetime(i.get('data_hora_inicio')).strftime('%d/%m às %H:%M')
+                    'data': pd.to_datetime(i.get('data_hora_inicio')).strftime('%d/%m %H:%M')
                 })
 
-            # B. Busca Eventos (Salão)
+            # B. Eventos (Salão)
             re = supabase.table('agendamentos_salao').select('id, cliente_final_waid, status, valor_total_registrado, produto_salao_id, data_reserva').eq('cliente_id', c_id).execute()
             for i in (re.data or []):
-                nome_item = map_produtos.get(i.get('produto_salao_id'), 'Reserva Salão')
-                
+                p_nome = map_produtos.get(i.get('produto_salao_id'), f"Salão ID {i.get('produto_salao_id')}")
+                telefone = i.get('cliente_final_waid')
+                if not telefone: telefone = "Sem Número"
+
                 leads_list.append({
-                    'id': i['id'], 
-                    'tipo': 'salao', 
-                    'cliente': i.get('cliente_final_waid', 'Desconhecido'),
-                    'produto': nome_item, # <--- AQUI ESTÁ O SEGREDO
+                    'id': i['id'], 'tipo': 'salao', 
+                    'cliente': telefone,
+                    'produto': p_nome,
                     'status': i.get('status', 'Pendente'), 
                     'valor': float(i.get('valor_total_registrado', 0) or 0),
                     'data': i.get('data_reserva')
                 })
-        except Exception as e: 
-            st.error(f"Erro ao carregar funil: {e}")
+        except Exception as e: st.error(f"Erro funil: {e}")
 
-        # 3. RENDERIZA O KANBAN VISUAL
+        # 3. RENDERIZAÇÃO
         if leads_list:
-            # Definição das Colunas
             cols = st.columns(3)
+            # Mapeamento exato dos status do seu banco para as colunas
             status_map = {
-                "🟡 Novos / Pendentes": ["Pendente", "Novo", "Aguardando", None],
-                "🟢 Confirmados / Pagos": ["Confirmado", "Pago", "Agendado"],
-                "🔴 Perdidos / Cancelados": ["Cancelado", "Desistiu"]
+                "🟡 Pendentes (A cobrar)": ["Pendente", "Novo", "Aguardando", None, ""],
+                "🟢 Confirmados (Pagos)": ["Confirmado", "Pago", "Agendado"],
+                "🔴 Cancelados": ["Cancelado", "Desistiu"]
             }
-            
-            # Cores da borda superior de cada coluna
             colors = ["#FFD700", "#00C851", "#FF4444"] 
             
-            # Loop para criar as 3 colunas
             for idx, (col_name, status_keys) in enumerate(status_map.items()):
                 with cols[idx]:
-                    # Cabeçalho da Coluna Estilizado
-                    st.markdown(f"""
-                        <div style='border-top: 4px solid {colors[idx]}; padding: 10px; background: #F8F9FA; border-radius: 5px; text-align: center; margin-bottom: 10px;'>
-                            <strong style='color: #333;'>{col_name}</strong>
-                        </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(f"<div style='border-top: 4px solid {colors[idx]}; background: #F8F9FA; padding: 5px; border-radius: 5px; text-align:center;'><b>{col_name}</b></div>", unsafe_allow_html=True)
+                    st.write("") # Espaçamento
                     
-                    # Filtra os cards que pertencem a esta coluna
                     cards = [l for l in leads_list if l['status'] in status_keys]
                     
-                    if not cards:
-                        st.caption("Vazio")
-                    
                     for card in cards:
-                        # O CARD VISUAL EM SI
                         with st.container(border=True):
-                            # Título: O Produto (Destaque Maior)                             st.markdown(f"##### 📦 {card['produto']}")
+                            # Título do Produto
+                            st.markdown(f"**📦 {card['produto']}**")
                             
-                            # Dados do Cliente e Data
-                            st.markdown(f"👤 **{card['cliente']}**")
-                            st.caption(f"📅 {card['data']}")
+                            # Telefone com Link para WhatsApp
+                            fone_limpo = str(card['cliente']).replace("+", "").replace(" ", "").replace("-", "")
+                            link_wa = f"https://wa.me/{fone_limpo}"
+                            st.markdown(f"👤 [{card['cliente']}]({link_wa})")
                             
-                            # Preço (Com destaque se for > 0)
-                            if card['valor'] > 0:
-                                st.markdown(f"💰 <span style='color:green; font-weight:bold'>R$ {card['valor']:,.2f}</span>", unsafe_allow_html=True)
-                            else:
-                                st.caption("💰 A definir / R$ 0,00")
-                            
-                            st.divider()
-                            
-                            # Botões de Ação
-                            c_btn_1, c_btn_2 = st.columns(2)
-                            with c_btn_1:
-                                if st.button("Aprovar", key=f"apv_{card['id']}_{card['tipo']}", use_container_width=True):
-                                    table = 'agendamentos' if card['tipo'] == 'servico' else 'agendamentos_salao'
-                                    supabase.table(table).update({'status': 'Confirmado'}).eq('id', card['id']).execute()
-                                    st.toast("Aprovado!", icon="✅")
-                                    time.sleep(1)
-                                    st.rerun()
-                            with c_btn_2:
-                                if st.button("Cancelar", key=f"rej_{card['id']}_{card['tipo']}", use_container_width=True):
-                                    table = 'agendamentos' if card['tipo'] == 'servico' else 'agendamentos_salao'
-                                    supabase.table(table).update({'status': 'Cancelado'}).eq('id', card['id']).execute()
-                                    st.toast("Cancelado.", icon="❌")
-                                    time.sleep(1)
-                                    st.rerun()
+                            # Data e Valor
+                            c_info1, c_info2 = st.columns(2)
+                            with c_info1: st.caption(f"📅 {card['data']}")
+                            with c_info2: 
+                                if card['valor'] > 0: st.markdown(f"**R$ {card['valor']:.2f}**")
+                                else: st.caption("R$ --")
+
+                            # Botões Lógicos (Só aparecem se não estiver cancelado)
+                            if "Cancelado" not in col_name:
+                                st.divider()
+                                b1, b2 = st.columns(2)
+                                with b1:
+                                    # Botão Aprovar vira dinheiro
+                                    if "Confirmado" not in col_name:
+                                        if st.button("💰 Pagar", key=f"pay_{card['id']}_{card['tipo']}", use_container_width=True, help="Muda status para Confirmado"):
+                                            table = 'agendamentos' if card['tipo'] == 'servico' else 'agendamentos_salao'
+                                            supabase.table(table).update({'status': 'Confirmado'}).eq('id', card['id']).execute()
+                                            st.toast("Confirmado! $$", icon="🤑")
+                                            time.sleep(1); st.rerun()
+                                    else:
+                                        st.success("Pago ✅")
+                                with b2:
+                                    if st.button("❌", key=f"del_{card['id']}_{card['tipo']}", use_container_width=True, help="Cancelar pedido"):
+                                        table = 'agendamentos' if card['tipo'] == 'servico' else 'agendamentos_salao'
+                                        supabase.table(table).update({'status': 'Cancelado'}).eq('id', card['id']).execute()
+                                        st.toast("Cancelado", icon="🗑️")
+                                        time.sleep(1); st.rerun()
         else:
-            st.info("Nenhum lead ou agendamento encontrado para o funil.")
+            st.info("Funil vazio. Aguardando novos leads do Otti.")
 
    # --------------------------------------------------------------------------
-    # TAB 1: INBOX (ATENDIMENTO HUMANO) - BLINDADO
+    # TAB 1: INBOX (COM CENTRAL DE NOTIFICAÇÕES)
     # --------------------------------------------------------------------------
     with tabs[1]:
         st.subheader("💬 Atendimento Humano (Z-API)")
         
-        # 1. INICIALIZAÇÃO SEGURA (Pra não dar NameError nunca mais)
+        # 1. INICIALIZAÇÃO SEGURA
         z_instancia = ""
         z_token = ""
         z_client_token = ""
 
-        # 2. BUSCA CREDENCIAIS NO BANCO (Localmente nesta aba)
+        # 2. BUSCA CREDENCIAIS E NOTIFICAÇÕES
         try:
-            # Busca os dados frescos deste cliente específico
+            # Busca credenciais
             dados_zapi = supabase.table('clientes').select('id_instance, zapi_token, client_token').eq('id', c_id).execute().data
             if dados_zapi:
                 z_instancia = dados_zapi[0].get('id_instance', '')
                 z_token = dados_zapi[0].get('zapi_token', '')
                 z_client_token = dados_zapi[0].get('client_token', '')
-        except Exception as e:
-            st.error(f"Erro ao carregar credenciais Z-API: {e}")
 
-        # --- LAYOUT DO CHAT ---
+            # BUSCA NOTIFICAÇÕES PENDENTES (A Mágica acontece aqui 🔔)
+            res_notif = supabase.table('notificacoes').select('*').eq('cliente_id', c_id).eq('lida', False).order('created_at', desc=True).execute()
+            notificacoes_pendentes = res_notif.data if res_notif.data else []
+            
+        except Exception as e:
+            st.error(f"Erro de carregamento: {e}")
+            notificacoes_pendentes = []
+
+        # --- ÁREA DE ALERTAS (POPUP VISUAL) ---
+        if notificacoes_pendentes:
+            with st.container(border=True):
+                # Cabeçalho Vermelho Chamativo
+                st.markdown(f"""
+                <div style="background-color: #FED7D7; border: 1px solid #F56565; padding: 10px; border-radius: 5px; color: #C53030; display: flex; align-items: center;">
+                    <span style="font-size: 20px; margin-right: 10px;">🔔</span>
+                    <strong>ATENÇÃO: {len(notificacoes_pendentes)} cliente(s) solicitando ajuda humana agora!</strong>
+                </div>
+                <br>
+                """, unsafe_allow_html=True)
+                
+                # Lista as notificações
+                for n in notificacoes_pendentes:
+                    col_n1, col_n2 = st.columns([3, 1])
+                    with col_n1:
+                        wa_fmt = n.get('origem_wa_id', 'Desconhecido')
+                        msg_prev = n.get('mensagem', 'Solicitação de atendimento')
+                        st.markdown(f"👤 **{wa_fmt}**: _{msg_prev}_")
+                    with col_n2:
+                        # Botão para limpar o alerta
+                        if st.button("✅ Já Atendi", key=f"notif_{n['id']}"):
+                            supabase.table('notificacoes').update({'lida': True}).eq('id', n['id']).execute()
+                            st.rerun()
+
+        st.divider()
+
+        # --- LAYOUT DO CHAT (Igual ao anterior) ---
         c_inbox_list, c_inbox_chat = st.columns([1, 2])
         
-        # COLUNA ESQUERDA: LISTA
+        # COLUNA ESQUERDA: LISTA DE CLIENTES
         with c_inbox_list:
             st.markdown("##### 📥 Conversas")
             try:
-                # Pega lista única de clientes do funil (leads_list deve estar carregado na Tab 0 ou antes)
-                # Se der erro aqui, criamos uma lista vazia
-                if 'leads_list' in locals() and leads_list:
-                    lista_clientes_chat = list(set([l['cliente'] for l in leads_list])) 
-                else:
-                    lista_clientes_chat = []
-
-                if lista_clientes_chat:
-                    cliente_ativo = st.radio("Selecione:", lista_clientes_chat, label_visibility="collapsed")
+                # 1. Pega clientes do Funil
+                lista_do_funil = list(set([l['cliente'] for l in leads_list])) if 'leads_list' in locals() and leads_list else []
+                
+                # 2. Pega clientes das Notificações (Prioridade)
+                lista_das_notificacoes = list(set([n['origem_wa_id'] for n in notificacoes_pendentes if n.get('origem_wa_id')]))
+                
+                # Une as listas e remove duplicados
+                lista_final = list(set(lista_das_notificacoes + lista_do_funil))
+                
+                if lista_final:
+                    # Se tiver notificação, marca o primeiro da lista como sugestão (opcional)
+                    idx_padrao = 0
+                    cliente_ativo = st.radio("Selecione:", lista_final, index=idx_padrao, label_visibility="collapsed")
                 else:
                     cliente_ativo = None
                     st.caption("Nenhuma conversa ativa.")
@@ -653,9 +683,15 @@ else:
         with c_inbox_chat:
             with st.container(border=True):
                 if cliente_ativo:
-                    # Cabeçalho
+                    # Verifica se este cliente específico tem notificação pendente
+                    tem_alerta = any(n['origem_wa_id'] == cliente_ativo for n in notificacoes_pendentes)
+                    
                     h1, h2 = st.columns([2,1])
-                    with h1: st.markdown(f"### 👤 {cliente_ativo}")
+                    with h1: 
+                        label_cli = f"### 👤 {cliente_ativo}"
+                        if tem_alerta: label_cli += " 🔴 (Pede Ajuda)"
+                        st.markdown(label_cli)
+                        
                     with h2:
                         bot_on = st.toggle("🤖 Bot Ativo", value=True, key=f"bot_state_{cliente_ativo}")
                         if not bot_on: st.caption("🔴 Modo Humano")
@@ -663,48 +699,40 @@ else:
 
                     st.divider()
                     
-                    # Área de Mensagens
                     chat_container = st.container(height=350)
                     with chat_container:
-                        with st.chat_message("user"): st.write("Gostaria de agendar.")
-                        with st.chat_message("assistant"): st.write("Claro! Qual dia?")
+                        # Se tiver alerta, mostra um aviso fixo dentro do chat também
+                        if tem_alerta:
+                            st.error("Este cliente tem uma solicitação pendente! Verifique acima.")
+                            
+                        with st.chat_message("user"): st.write("Gostaria de falar com atendente.")
+                        with st.chat_message("assistant"): st.write("Entendi, vou chamar alguém.")
                         if not bot_on: st.warning("Bot pausado. Você assume.")
 
-                    # --- INPUT E ENVIO ---
                     msg_humana = st.chat_input(f"Enviar para {cliente_ativo}...")
                     
                     if msg_humana:
-                        # 1. Mostra na tela
                         with chat_container:
                             with st.chat_message("assistant"): st.write(msg_humana)
                         
-                        # 2. Verifica se temos as credenciais antes de tentar enviar
                         if z_instancia and z_token:
                             try:
                                 url_zapi = f"https://api.z-api.io/instances/{z_instancia}/token/{z_token}/send-text"
-                                
-                                payload = {
-                                    "phone": cliente_ativo,
-                                    "message": msg_humana
-                                }
-                                
+                                payload = {"phone": cliente_ativo, "message": msg_humana}
                                 headers = {}
-                                if z_client_token:
-                                    headers["Client-Token"] = z_client_token
+                                if z_client_token: headers["Client-Token"] = z_client_token
                                 
-                                # Dispara
                                 requests.post(url_zapi, json=payload, headers=headers)
                                 st.toast("Enviado via Z-API! 🚀", icon="✅")
                                 
-                                # Pausa o bot se necessário
                                 if not bot_on:
                                     supabase.table('clientes').update({'bot_pausado': True}).eq('id', c_id).execute()
                                     st.toast("Bot pausado.", icon="⏸️")
                                     
                             except Exception as e:
-                                st.error(f"Erro na requisição: {e}")
+                                st.error(f"Erro Z-API: {e}")
                         else:
-                            st.error("⚠️ Sem credenciais Z-API. Verifique o cadastro do cliente.")
+                            st.error("⚠️ Sem credenciais Z-API.")
                 else:
                     st.info("Selecione um cliente ao lado.")
 
@@ -1034,6 +1062,7 @@ else:
                         st.rerun()
 
         except Exception as e: st.error(f"Erro Cérebro: {e}")
+
 
 
 
