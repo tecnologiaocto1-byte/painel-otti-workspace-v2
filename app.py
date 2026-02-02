@@ -1147,7 +1147,7 @@ else:
                                     st.toast("Serviço concluído!", icon="✨")
                                     time.sleep(1); st.rerun()
                             with b2:
-                                if st.button("🚫 No-Show", key=f"no_{task['ID']}_{task['Tipo']}", use_container_width=True, help="Cliente faltou"):
+                                if st.button("🚫 Cancelado", key=f"no_{task['ID']}_{task['Tipo']}", use_container_width=True, help="Cliente faltou"):
                                     table = 'agendamentos' if task['Tipo'] == 'servico' else 'agendamentos_salao'
                                     supabase.table(table).update({'status': 'Faltou'}).eq('id', task['ID']).execute()
                                     st.toast("Falta registrada.", icon="📉")
@@ -1298,6 +1298,7 @@ else:
                         st.rerun()
 
         except Exception as e: st.error(f"Erro Cérebro: {e}")
+
 
 
 
