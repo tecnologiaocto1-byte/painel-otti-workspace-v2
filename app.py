@@ -488,7 +488,7 @@ else:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # --- ABAS ---
-    tabs = st.tabs(["💰 Funil", "💬 Inbox", "📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
+    tabs = st.tabs(["💰 Funil", "💬 Inbox", "📢 Disparos", "📊 Analytics", "📦 Produtos", "📅 Agenda", "🧠 Cérebro"])
 
     # --------------------------------------------------------------------------
     # TAB 0: FUNIL DE VENDAS (KANBAN DETALHADO + LINK ZAP)
@@ -786,9 +786,102 @@ else:
                 st.info("Selecione uma conversa para ver a ficha do cliente.")
 
     # --------------------------------------------------------------------------
-    # TAB 2: ANALYTICS (GRÁFICOS RESTAURADOS)
+    # TAB 2: DISPAROS EM MASSA (MARKETING)
     # --------------------------------------------------------------------------
     with tabs[2]:
+        st.subheader("📢 Campanhas & Disparos")
+        
+        # 1. Recupera credenciais Z-API (Localmente para garantir)
+        try:
+            d_zapi = supabase.table('clientes').select('id_instance, zapi_token, client_token').eq('id', c_id).execute().data[0]
+            z_inst, z_tok, z_cli = d_zapi.get('id_instance'), d_zapi.get('zapi_token'), d_zapi.get('client_token')
+        except: z_inst, z_tok, z_cli = None, None, None
+
+        # 2. Configuração do Disparo
+        c_filtros, c_msg = st.columns([1, 2])
+        
+        with c_filtros:
+            st.markdown("##### 1. Quem vai receber?")
+            # Busca todas as Tags usadas no CRM
+            try:
+                todos_clientes = supabase.table('crm_clientes_finais').select('wa_id, nome, tags').eq('cliente_id', c_id).execute().data
+                # Extrai lista única de tags
+                set_tags = set()
+                for cli in todos_clientes:
+                    if cli.get('tags'):
+                        for t in cli['tags']: set_tags.add(t)
+                
+                lista_tags = list(set_tags)
+            except: 
+                todos_clientes = []
+                lista_tags = []
+
+            sel_tags = st.multiselect("Filtrar por Etiquetas:", lista_tags)
+            
+            # Filtra os alvos
+            alvos = []
+            if sel_tags:
+                for cli in todos_clientes:
+                    tags_cli = cli.get('tags') or []
+                    # Se tiver pelo menos uma das tags selecionadas
+                    if any(t in sel_tags for t in tags_cli):
+                        alvos.append(cli)
+            else:
+                st.info("Selecione etiquetas para filtrar.")
+            
+            st.metric("Público Alvo", f"{len(alvos)} clientes")
+            if len(alvos) > 0:
+                with st.expander("Ver lista"):
+                    for a in alvos: st.caption(f"{a.get('nome') or 'Sem Nome'} ({a['wa_id']})")
+
+        with c_msg:
+            with st.container(border=True):
+                st.markdown("##### 2. A Mensagem")
+                txt_msg = st.text_area("Conteúdo", height=150, placeholder="Olá! Temos promoção hoje...")
+                st.caption("Dica: Evite textos muito longos para não ser bloqueado.")
+                
+                if st.button("🚀 Enviar Campanha", type="primary", use_container_width=True):
+                    if not z_inst or not z_tok:
+                        st.error("Z-API não configurada!")
+                    elif len(alvos) == 0:
+                        st.warning("Nenhum cliente selecionado.")
+                    elif not txt_msg:
+                        st.warning("Escreva uma mensagem.")
+                    else:
+                        # BARRA DE PROGRESSO
+                        progresso = st.progress(0, text="Iniciando disparos...")
+                        sucessos = 0
+                        
+                        for i, alvo in enumerate(alvos):
+                            try:
+                                # Envia Z-API
+                                u = f"https://api.z-api.io/instances/{z_inst}/token/{z_tok}/send-text"
+                                h = {"Client-Token": z_cli} if z_cli else {}
+                                requests.post(u, json={"phone": alvo['wa_id'], "message": txt_msg}, headers=h)
+                                sucessos += 1
+                                # Delay de segurança anti-ban
+                                time.sleep(2) 
+                            except: pass
+                            
+                            # Atualiza barra
+                            pct = int(((i + 1) / len(alvos)) * 100)
+                            progresso.progress(pct, text=f"Enviando... {i+1}/{len(alvos)}")
+                        
+                        st.success(f"Disparo finalizado! {sucessos} mensagens enviadas.")
+                        
+                        # Salva Histórico
+                        supabase.table('crm_campanhas').insert({
+                            'cliente_id': c_id,
+                            'titulo_campanha': f"Disparo {datetime.now().strftime('%d/%m')}",
+                            'mensagem_enviada': txt_msg,
+                            'qtd_alvos': sucessos,
+                            'filtros_usados': str(sel_tags)
+                        }).execute()
+    
+    # --------------------------------------------------------------------------
+    # TAB 3: ANALYTICS (GRÁFICOS RESTAURADOS)
+    # --------------------------------------------------------------------------
+    with tabs[3]:
         try:
             r_s = supabase.table('agendamentos_salao').select('created_at, valor_sinal_registrado, status, produto_salao_id').eq('cliente_id', c_id).execute().data
             r_p = supabase.table('agendamentos').select('created_at, valor_sinal_registrado, status, servico_id').eq('cliente_id', c_id).execute().data
@@ -881,9 +974,9 @@ else:
         except Exception as e: st.error(f"Erro Visual: {e}")
 
     # --------------------------------------------------------------------------
-    # TAB 3: PRODUTOS
+    # TAB 4: PRODUTOS
     # --------------------------------------------------------------------------
-    with tabs[3]:
+    with tabs[4]:
         rp = supabase.table('produtos').select('id, nome, categoria, regras_preco').eq('cliente_id', c_id).order('nome').execute()
         lista_produtos = []
         if rp.data:
@@ -953,70 +1046,88 @@ else:
                                     st.success("Tchau!"); time.sleep(1); st.rerun()
 
     # --------------------------------------------------------------------------
-    # TAB 4: AGENDA
-    # --------------------------------------------------------------------------
-    with tabs[4]:
-        try:
-            res_prod = supabase.table('produtos').select('id, nome').eq('cliente_id', c_id).execute()
-            map_prod = {p['id']: p['nome'] for p in res_prod.data} if res_prod.data else {}
-            map_prod_inv = {v: k for k, v in map_prod.items()}
-        except: map_prod, map_prod_inv = {}, {}
-
-        cl, cr = st.columns([2, 1])
-        with cl:
-            st.subheader("Agenda")
-            lista_agenda, delete_map = [], {}
-            try:
-                rv = supabase.table('agendamentos').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(15).execute()
-                for i in (rv.data or []):
-                    nm = map_prod.get(i.get('servico_id'), 'Serviço')
-                    dt = pd.to_datetime(i.get('data_hora_inicio')).strftime('%d/%m %H:%M')
-                    lista_agenda.append({'Data': dt, 'Cliente': i.get('cliente_final_waid'), 'Item': nm})
-                    delete_map[f"[S] {dt} {nm}"] = {'id': i['id'], 't': 'agendamentos'}
-            except: pass
-            
-            try:
-                re = supabase.table('agendamentos_salao').select('*').eq('cliente_id', c_id).order('created_at', desc=True).limit(15).execute()
-                for i in (re.data or []):
-                    nm = map_prod.get(i.get('produto_salao_id'), 'Salão')
-                    dt = i.get('data_reserva')
-                    lista_agenda.append({'Data': dt, 'Cliente': i.get('cliente_final_waid'), 'Item': nm})
-                    delete_map[f"[E] {dt} {nm}"] = {'id': i['id'], 't': 'agendamentos_salao'}
-            except: pass
-
-            if lista_agenda: st.dataframe(pd.DataFrame(lista_agenda), use_container_width=True, hide_index=True)
-            else: st.info("Vazia.")
-            
-            if delete_map:
-                s_del = st.selectbox("Apagar:", list(delete_map.keys()))
-                if st.button("Confirmar Apagar"):
-                    tabela = delete_map[s_del]['t']
-                    supabase.table(tabela).delete().eq('id', delete_map[s_del]['id']).execute()
-                    st.rerun()
-
-        with cr:
-            st.write("**Novo Agendamento**")
-            with st.form("new_agd"):
-                cli = st.text_input("Cliente")
-                dt_d = st.date_input("Data")
-                dt_h = st.time_input("Hora")
-                item = st.selectbox("Item", list(map_prod_inv.keys())) if map_prod_inv else None
-                val = st.number_input("Valor", 0.0)
-                if st.form_submit_button("Agendar", type="primary"):
-                    try:
-                        dt_iso = datetime.combine(dt_d, dt_h).isoformat()
-                        supabase.table('agendamentos').insert({
-                            "cliente_id": c_id, "data_hora_inicio": dt_iso, 
-                            "cliente_final_waid": cli, "servico_id": map_prod_inv.get(item), 
-                            "valor_total_registrado": val, "status": "Confirmado"
-                        }).execute()
-                        st.success("Feito!"); time.sleep(1); st.rerun()
-                    except Exception as e: st.error(f"Erro: {e}")
-
-    # --------------------------------------------------------------------------
-    # TAB 5: CÉREBRO (IA - Harmonizado e com Nomes das Vozes)
+    # TAB 5: AGENDA + TAREFAS (CRM OPERACIONAL)
     # --------------------------------------------------------------------------
     with tabs[5]:
+        st.subheader("📅 Agenda & Tarefas")
+        
+        col_agenda, col_tarefas = st.columns([1.5, 1])
+        
+        # --- LADO ESQUERDO: AGENDA DO BOT (O que já existia) ---
+        with col_agenda:
+            st.markdown("##### 🗓️ Agendamentos Confirmados")
+            try:
+                # Busca apenas confirmados para a agenda visual
+                res_ag = supabase.table('agendamentos').select('*').eq('cliente_id', c_id).eq('status', 'Confirmado').order('data_hora_inicio', desc=False).limit(10).execute()
+                agendamentos = res_ag.data if res_ag.data else []
+                
+                if agendamentos:
+                    for ag in agendamentos:
+                        dt_obj = pd.to_datetime(ag['data_hora_inicio'])
+                        dia = dt_obj.strftime("%d/%m")
+                        hora = dt_obj.strftime("%H:%M")
+                        cli_wa = ag.get('cliente_final_waid', 'Cliente')
+                        
+                        with st.container(border=True):
+                            c_a1, c_a2 = st.columns([1, 3])
+                            with c_a1: 
+                                st.markdown(f"## {dia}")
+                                st.caption(hora)
+                            with c_a2:
+                                st.markdown(f"**{cli_wa}**")
+                                st.caption("Serviço Agendado")
+                else:
+                    st.info("Agenda vazia por enquanto.")
+            except Exception as e: st.error(f"Erro agenda: {e}")
+
+        # --- LADO DIREITO: MINHAS TAREFAS (NOVO CRM) ---
+        with col_tarefas:
+            st.markdown("##### ✅ Minhas Tarefas")
+            
+            # Form de Nova Tarefa
+            with st.form("form_task"):
+                t_titulo = st.text_input("Nova Tarefa", placeholder="Ex: Ligar para João")
+                t_data = st.date_input("Vencimento", value=datetime.now())
+                if st.form_submit_button("Adicionar", use_container_width=True):
+                    supabase.table('crm_tarefas').insert({
+                        "cliente_id": c_id,
+                        "titulo": t_titulo,
+                        "data_vencimento": str(t_data),
+                        "concluido": False
+                    }).execute()
+                    st.rerun()
+            
+            st.markdown("---")
+            
+            # Lista de Tarefas Pendentes
+            try:
+                res_tasks = supabase.table('crm_tarefas').select('*').eq('cliente_id', c_id).eq('concluido', False).order('data_vencimento').execute()
+                tarefas = res_tasks.data if res_tasks.data else []
+                
+                if tarefas:
+                    for t in tarefas:
+                        check_col, text_col, del_col = st.columns([0.5, 3, 0.5])
+                        with check_col:
+                            # Checkbox para concluir
+                            if st.button("⭕", key=f"chk_{t['id']}", help="Concluir"):
+                                supabase.table('crm_tarefas').update({'concluido': True}).eq('id', t['id']).execute()
+                                st.rerun()
+                        with text_col:
+                            st.write(f"**{t['titulo']}**")
+                            st.caption(f"Vence: {t['data_vencimento']}")
+                        with del_col:
+                            if st.button("🗑️", key=f"del_t_{t['id']}"):
+                                supabase.table('crm_tarefas').delete().eq('id', t['id']).execute()
+                                st.rerun()
+                else:
+                    st.caption("Tudo feito! 🎉")
+                    
+            except Exception as e: st.error("Erro tarefas")
+
+    # --------------------------------------------------------------------------
+    # TAB 6: CÉREBRO (IA - Harmonizado e com Nomes das Vozes)
+    # --------------------------------------------------------------------------
+    with tabs[6]:
         st.subheader("Configuração da IA")
         try:
             res = supabase.table('clientes').select('config_fluxo, prompt_full').eq('id', c_id).execute()
@@ -1111,6 +1222,7 @@ else:
                         st.rerun()
 
         except Exception as e: st.error(f"Erro Cérebro: {e}")
+
 
 
 
