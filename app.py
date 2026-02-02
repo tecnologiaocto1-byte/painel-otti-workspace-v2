@@ -744,34 +744,63 @@ else:
                 else:
                     st.info("Selecione um cliente.")
 
-        # --- COLUNA 3: CRM (MANTIDA) ---
+        # --- COLUNA 3: CRM (FICHA CAPIVARA CORRIGIDA) ---
         with c_crm:
             if cliente_ativo:
                 st.markdown(f"### 📋 Ficha")
+                
+                # 1. Carrega dados do Banco
                 try:
                     res_crm = supabase.table('crm_clientes_finais').select('*').eq('cliente_id', c_id).eq('wa_id', cliente_ativo).execute()
-                    perfil = res_crm.data[0] if res_crm.data else {}
-                    notas = perfil.get('notas', '')
-                    tags = perfil.get('tags', [])
-                    crm_id = perfil.get('id')
+                    if res_crm.data:
+                        perfil = res_crm.data[0]
+                        crm_id = perfil.get('id')
+                        notas = perfil.get('notas', '')
+                        # Garante que tags seja uma lista, mesmo se vier null
+                        tags = perfil.get('tags') or []
+                    else:
+                        perfil = {}
+                        crm_id = None
+                        notas = ""
+                        tags = []
                 except: 
                     notas = ""; tags = []; crm_id = None
 
+                # 2. Formulário Seguro
                 with st.form(f"crm_{cliente_ativo}"):
-                    novas_tags = st.multiselect("Tags", ["VIP", "Novo", "Chato", "Negociação"], default=tags)
-                    novas_notas = st.text_area("Notas", value=notas, height=200)
+                    # Lista de opções base
+                    opcoes_base = ["VIP", "Novo", "Chato", "Negociação", "Recorrente", "Indicação"]
                     
-                    if st.form_submit_button("💾 Salvar"):
-                        dados = {"cliente_id": c_id, "wa_id": cliente_ativo, "tags": novas_tags, "notas": novas_notas}
+                    # TRUQUE ANTI-ERRO: Adiciona as tags do banco na lista de opções se elas não existirem lá
+                    # Isso evita o StreamlitAPIException
+                    opcoes_finais = opcoes_base.copy()
+                    for t in tags:
+                        if t not in opcoes_finais:
+                            opcoes_finais.append(t)
+                    
+                    # Agora o multiselect nunca vai quebrar
+                    novas_tags = st.multiselect("Tags", options=opcoes_finais, default=tags)
+                    
+                    novas_notas = st.text_area("Notas Internas", value=notas, height=200)
+                    
+                    if st.form_submit_button("💾 Salvar Ficha"):
+                        dados = {
+                            "cliente_id": c_id, 
+                            "wa_id": cliente_ativo, 
+                            "tags": novas_tags, 
+                            "notas": novas_notas
+                        }
+                        
                         if crm_id:
                             supabase.table('crm_clientes_finais').update(dados).eq('id', crm_id).execute()
                         else:
                             supabase.table('crm_clientes_finais').insert(dados).execute()
+                            
                         st.success("Salvo!")
                         time.sleep(0.5)
                         st.rerun()
             else:
-                st.info("Selecione conversa.")
+                st.info("Selecione uma conversa para ver o CRM.")
 
     # --------------------------------------------------------------------------
     # TAB 2: DISPAROS EM MASSA (MARKETING)
@@ -1286,6 +1315,7 @@ else:
                         st.rerun()
 
         except Exception as e: st.error(f"Erro Cérebro: {e}")
+
 
 
 
