@@ -1046,41 +1046,118 @@ else:
                                     st.success("Tchau!"); time.sleep(1); st.rerun()
 
     # --------------------------------------------------------------------------
-    # TAB 5: AGENDA + TAREFAS (CRM OPERACIONAL)
+    # TAB 5: AGENDA EM TABELA + TAREFAS (COM BAIXA DE SERVIÇO)
     # --------------------------------------------------------------------------
     with tabs[5]:
-        st.subheader("📅 Agenda & Tarefas")
+        st.subheader("📅 Agenda Operacional")
         
-        col_agenda, col_tarefas = st.columns([1.5, 1])
+        col_agenda, col_tarefas = st.columns([2, 1]) # Agenda mais larga
         
-        # --- LADO ESQUERDO: AGENDA DO BOT (O que já existia) ---
+        # ======================================================================
+        # LADO ESQUERDO: AGENDA (TABELA + BAIXA)
+        # ======================================================================
         with col_agenda:
-            st.markdown("##### 🗓️ Agendamentos Confirmados")
+            # 1. BUSCAR DADOS
+            lista_agenda_full = []
             try:
-                # Busca apenas confirmados para a agenda visual
-                res_ag = supabase.table('agendamentos').select('*').eq('cliente_id', c_id).eq('status', 'Confirmado').order('data_hora_inicio', desc=False).limit(10).execute()
-                agendamentos = res_ag.data if res_ag.data else []
+                # Busca Agendamentos (Serviços)
+                res_ag = supabase.table('agendamentos').select('*').eq('cliente_id', c_id).neq('status', 'Cancelado').order('data_hora_inicio', desc=False).execute()
+                # Busca Eventos (Salão)
+                res_sl = supabase.table('agendamentos_salao').select('*').eq('cliente_id', c_id).neq('status', 'Cancelado').execute()
                 
-                if agendamentos:
-                    for ag in agendamentos:
-                        dt_obj = pd.to_datetime(ag['data_hora_inicio'])
-                        dia = dt_obj.strftime("%d/%m")
-                        hora = dt_obj.strftime("%H:%M")
-                        cli_wa = ag.get('cliente_final_waid', 'Cliente')
-                        
-                        with st.container(border=True):
-                            c_a1, c_a2 = st.columns([1, 3])
-                            with c_a1: 
-                                st.markdown(f"## {dia}")
-                                st.caption(hora)
-                            with c_a2:
-                                st.markdown(f"**{cli_wa}**")
-                                st.caption("Serviço Agendado")
-                else:
-                    st.info("Agenda vazia por enquanto.")
-            except Exception as e: st.error(f"Erro agenda: {e}")
+                # Mapeia nomes de produtos (para a tabela ficar bonita)
+                prods_db = supabase.table('produtos').select('id, nome').eq('cliente_id', c_id).execute().data
+                map_p = {p['id']: p['nome'] for p in prods_db} if prods_db else {}
 
-        # --- LADO DIREITO: MINHAS TAREFAS (NOVO CRM) ---
+                # Processa Serviços
+                if res_ag.data:
+                    for i in res_ag.data:
+                        dt_obj = pd.to_datetime(i['data_hora_inicio'])
+                        lista_agenda_full.append({
+                            "ID": i['id'],
+                            "Tipo": "servico",
+                            "Data": dt_obj.strftime("%d/%m/%Y"),
+                            "Hora": dt_obj.strftime("%H:%M"),
+                            "Cliente": i.get('cliente_final_waid', 'Sem Nome'),
+                            "Serviço": map_p.get(i.get('servico_id'), 'Serviço'),
+                            "Status": i.get('status', 'Pendente'),
+                            "dt_sort": dt_obj # Coluna auxiliar pra ordenar
+                        })
+                
+                # Processa Salão
+                if res_sl.data:
+                    for i in res_sl.data:
+                        lista_agenda_full.append({
+                            "ID": i['id'],
+                            "Tipo": "salao",
+                            "Data": pd.to_datetime(i['data_reserva']).strftime("%d/%m/%Y"),
+                            "Hora": "Dia todo",
+                            "Cliente": i.get('cliente_final_waid', 'Sem Nome'),
+                            "Serviço": map_p.get(i.get('produto_salao_id'), 'Salão'),
+                            "Status": i.get('status', 'Pendente'),
+                            "dt_sort": pd.to_datetime(i['data_reserva'])
+                        })
+                
+                # Ordena por data
+                lista_agenda_full.sort(key=lambda x: x['dt_sort'])
+
+            except Exception as e: 
+                st.error(f"Erro ao carregar agenda: {e}")
+                lista_agenda_full = []
+
+            # 2. EXIBIR TABELA (VISUALIZAÇÃO)
+            if lista_agenda_full:
+                df_agenda = pd.DataFrame(lista_agenda_full)
+                # Remove colunas técnicas da visualização
+                df_visual = df_agenda[["Data", "Hora", "Cliente", "Serviço", "Status"]]
+                
+                st.markdown("##### 📋 Visão Geral")
+                st.dataframe(
+                    df_visual, 
+                    use_container_width=True, 
+                    hide_index=True,
+                    height=300
+                )
+            else:
+                st.info("Agenda vazia.")
+
+            st.divider()
+
+            # 3. ÁREA DE BAIXA (CHECK-OUT)
+            st.markdown("##### 🏁 Confirmar Realização")
+            st.caption("Dê baixa nos serviços que já aconteceram para contabilizar no histórico.")
+            
+            # Filtra apenas o que está "Confirmado" (ainda não foi "Concluído")
+            pendentes_de_baixa = [x for x in lista_agenda_full if x['Status'] == 'Confirmado']
+            
+            if pendentes_de_baixa:
+                for task in pendentes_de_baixa:
+                    with st.container(border=True):
+                        c_info, c_btns = st.columns([3, 2])
+                        with c_info:
+                            st.markdown(f"**{task['Data']} às {task['Hora']}**")
+                            st.write(f"👤 {task['Cliente']} | 📦 {task['Serviço']}")
+                        
+                        with c_btns:
+                            b1, b2 = st.columns(2)
+                            with b1:
+                                if st.button("✅ Feito", key=f"ok_{task['ID']}_{task['Tipo']}", use_container_width=True):
+                                    table = 'agendamentos' if task['Tipo'] == 'servico' else 'agendamentos_salao'
+                                    supabase.table(table).update({'status': 'Concluído'}).eq('id', task['ID']).execute()
+                                    st.toast("Serviço concluído!", icon="✨")
+                                    time.sleep(1); st.rerun()
+                            with b2:
+                                if st.button("🚫 No-Show", key=f"no_{task['ID']}_{task['Tipo']}", use_container_width=True, help="Cliente faltou"):
+                                    table = 'agendamentos' if task['Tipo'] == 'servico' else 'agendamentos_salao'
+                                    supabase.table(table).update({'status': 'Faltou'}).eq('id', task['ID']).execute()
+                                    st.toast("Falta registrada.", icon="📉")
+                                    time.sleep(1); st.rerun()
+            else:
+                st.success("Tudo em dia! Nenhum serviço pendente de baixa.")
+
+        # ======================================================================
+        # LADO DIREITO: MINHAS TAREFAS (MANTIDO)
+        # ======================================================================
         with col_tarefas:
             st.markdown("##### ✅ Minhas Tarefas")
             
@@ -1106,22 +1183,21 @@ else:
                 
                 if tarefas:
                     for t in tarefas:
-                        check_col, text_col, del_col = st.columns([0.5, 3, 0.5])
-                        with check_col:
-                            # Checkbox para concluir
-                            if st.button("⭕", key=f"chk_{t['id']}", help="Concluir"):
-                                supabase.table('crm_tarefas').update({'concluido': True}).eq('id', t['id']).execute()
-                                st.rerun()
-                        with text_col:
-                            st.write(f"**{t['titulo']}**")
-                            st.caption(f"Vence: {t['data_vencimento']}")
-                        with del_col:
-                            if st.button("🗑️", key=f"del_t_{t['id']}"):
-                                supabase.table('crm_tarefas').delete().eq('id', t['id']).execute()
-                                st.rerun()
+                        with st.container(border=True):
+                            check_col, text_col, del_col = st.columns([0.5, 3, 0.5])
+                            with check_col:
+                                if st.button("⭕", key=f"chk_{t['id']}", help="Concluir"):
+                                    supabase.table('crm_tarefas').update({'concluido': True}).eq('id', t['id']).execute()
+                                    st.rerun()
+                            with text_col:
+                                st.markdown(f"**{t['titulo']}**")
+                                st.caption(f"📅 {t['data_vencimento']}")
+                            with del_col:
+                                if st.button("🗑️", key=f"del_t_{t['id']}"):
+                                    supabase.table('crm_tarefas').delete().eq('id', t['id']).execute()
+                                    st.rerun()
                 else:
                     st.caption("Tudo feito! 🎉")
-                    
             except Exception as e: st.error("Erro tarefas")
 
     # --------------------------------------------------------------------------
@@ -1222,6 +1298,7 @@ else:
                         st.rerun()
 
         except Exception as e: st.error(f"Erro Cérebro: {e}")
+
 
 
 
