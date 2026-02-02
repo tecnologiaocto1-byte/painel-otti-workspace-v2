@@ -599,16 +599,15 @@ else:
             st.info("Funil vazio. Aguardando novos leads do Otti.")
 
    # --------------------------------------------------------------------------
-    # TAB 1: INBOX + CRM 360º (COM FICHA CAPIVARA E TAGS)
+    # TAB 1: INBOX REAL (CONECTADO AO HISTORICO_MENSAGENS)
     # --------------------------------------------------------------------------
     with tabs[1]:
-        # Layout expandido para caber as 3 colunas
         st.subheader("💬 Atendimento & CRM")
         
-        # 1. INICIALIZAÇÃO SEGURA
+        # 1. INICIALIZAÇÃO
         z_instancia, z_token, z_client_token = "", "", ""
 
-        # 2. BUSCA CREDENCIAIS E NOTIFICAÇÕES
+        # 2. BUSCA CREDENCIAIS E DADOS
         try:
             dados_zapi = supabase.table('clientes').select('id_instance, zapi_token, client_token').eq('id', c_id).execute().data
             if dados_zapi:
@@ -616,174 +615,163 @@ else:
                 z_token = dados_zapi[0].get('zapi_token', '')
                 z_client_token = dados_zapi[0].get('client_token', '')
 
-            # Notificações Pendentes
+            # Notificações
             res_notif = supabase.table('notificacoes').select('*').eq('cliente_id', c_id).eq('lida', False).order('created_at', desc=True).execute()
             notificacoes_pendentes = res_notif.data if res_notif.data else []
         except: notificacoes_pendentes = []
 
-        # --- ALERTA VISUAL (NOTIFICAÇÕES) ---
+        # Alerta Notificações
         if notificacoes_pendentes:
-            st.error(f"🔔 {len(notificacoes_pendentes)} cliente(s) pedindo ajuda! Verifique a lista abaixo.")
+            st.error(f"🔔 {len(notificacoes_pendentes)} solicitações de atendimento!")
 
         st.divider()
 
-        # --- LAYOUT DE 3 COLUNAS (LISTA | CHAT | CRM) ---
-        # A proporção [1, 2, 1.5] dá bastante espaço pro chat e pra ficha
+        # Layout 3 Colunas
         c_list, c_chat, c_crm = st.columns([1, 2, 1.5])
         
-        # ======================================================================
-        # COLUNA 1: LISTA DE CONVERSAS
-        # ======================================================================
+        # --- COLUNA 1: LISTA DE CLIENTES ---
         with c_list:
             st.markdown("##### 📥 Conversas")
             try:
-                # Une clientes do Funil + Notificações
+                # 1. Clientes do Funil
                 l_funil = list(set([l['cliente'] for l in leads_list])) if 'leads_list' in locals() and leads_list else []
+                # 2. Clientes das Notificações
                 l_notif = list(set([n['origem_wa_id'] for n in notificacoes_pendentes if n.get('origem_wa_id')]))
-                lista_final = sorted(list(set(l_notif + l_funil)), key=lambda x: x in l_notif, reverse=True) # Prioriza notificações
+                # 3. Clientes com Histórico (Busca na tabela certa agora!)
+                try:
+                    # Tenta buscar IDs únicos de quem tem mensagem (pelo wa_id)
+                    res_hist = supabase.table('historico_mensagens').select('wa_id').eq('cliente_id', c_id).execute()
+                    l_hist = list(set([m['wa_id'] for m in res_hist.data if m.get('wa_id')])) if res_hist.data else []
+                except: l_hist = []
+
+                # Junta tudo
+                lista_final = sorted(list(set(l_notif + l_funil + l_hist)), key=lambda x: x in l_notif, reverse=True)
                 
                 if lista_final:
-                    # Formata visualmente se tiver notificação
-                    opcoes_visuais = [f"🔴 {cli}" if cli in l_notif else cli for cli in lista_final]
-                    sel_idx = st.radio("Clientes", opcoes_visuais, label_visibility="collapsed")
+                    # Remove None ou vazios da lista
+                    lista_final = [x for x in lista_final if x]
                     
-                    # Limpa o emoji pra pegar o ID real
+                    opcoes_visuais = [f"🔴 {cli}" if cli in l_notif else cli for cli in lista_final]
+                    sel_idx = st.radio("Selecione:", opcoes_visuais, label_visibility="collapsed")
                     cliente_ativo = sel_idx.replace("🔴 ", "")
                 else:
                     cliente_ativo = None
-                    st.caption("Nada aqui.")
+                    st.caption("Sem conversas.")
             except: cliente_ativo = None
 
-        # ======================================================================
-        # COLUNA 2: CHAT (MENSAGENS)
-        # ======================================================================
+        # --- COLUNA 2: CHAT REAL ---
         with c_chat:
             with st.container(border=True):
                 if cliente_ativo:
-                    # Header do Chat
+                    # Header
                     bh1, bh2 = st.columns([2,1])
                     with bh1: st.markdown(f"**Chat: {cliente_ativo}**")
                     with bh2:
                         bot_on = st.toggle("🤖 Bot", value=True, key=f"bt_{cliente_ativo}")
+                        if st.button("🔄 Atualizar", key=f"refr_{cliente_ativo}"): st.rerun()
                     
                     st.divider()
                     
-                    # Limpar notificação se houver
+                    # Limpar notificação
                     if cliente_ativo in l_notif:
-                         if st.button("✅ Marcar como Atendido", key=f"cls_{cliente_ativo}", use_container_width=True):
+                         if st.button("✅ Marcar Atendido", key=f"cls_{cliente_ativo}", use_container_width=True):
                              supabase.table('notificacoes').update({'lida': True}).eq('origem_wa_id', cliente_ativo).execute()
                              st.rerun()
 
-                    # Área de Mensagens (Visual)
+                    # --- ÁREA DE MENSAGENS REAL ---
                     chat_box = st.container(height=400)
                     with chat_box:
-                        with st.chat_message("user"): st.write("Olá!")
-                        with st.chat_message("assistant"): st.write("Opa, tudo bem?")
+                        # 1. BUSCA HISTÓRICO NA TABELA CERTA (historico_mensagens)
+                        try:
+                            # Filtra pelo wa_id (telefone) que é o nosso identificador principal
+                            historico = supabase.table('historico_mensagens').select('*').eq('wa_id', cliente_ativo).order('created_at').execute().data
+                            
+                            if historico:
+                                for msg in historico:
+                                    # Mapeia as roles do seu JSON ('user' e 'assistant')
+                                    role_msg = msg.get('role', 'user')
+                                    conteudo = msg.get('content', '')
+                                    
+                                    # Renderiza na tela
+                                    with st.chat_message(role_msg): 
+                                        st.write(conteudo)
+                            else:
+                                st.caption("Nenhuma mensagem encontrada para este número.")
+                                st.caption("(Se houver mensagens antigas sem o número de telefone salvo, elas não aparecerão aqui até serem vinculadas).")
+                        except Exception as e: st.error(f"Erro ao ler mensagens: {e}")
+
                         if not bot_on: st.warning("Modo manual ativo.")
 
-                    # Input
-                    msg = st.chat_input(f"Falar com {cliente_ativo}...")
-                    if msg:
-                        with chat_box: 
-                            with st.chat_message("assistant"): st.write(msg)
-                        
-                        # Envio Z-API
+                    # --- INPUT E ENVIO ---
+                    msg_txt = st.chat_input(f"Responder {cliente_ativo}...")
+                    
+                    if msg_txt:
+                        # 1. Envia Z-API
+                        enviado_sucesso = False
                         if z_instancia and z_token:
                             try:
                                 u = f"https://api.z-api.io/instances/{z_instancia}/token/{z_token}/send-text"
                                 h = {"Client-Token": z_client_token} if z_client_token else {}
-                                requests.post(u, json={"phone": cliente_ativo, "message": msg}, headers=h)
-                                st.toast("Enviado!", icon="🚀")
+                                r = requests.post(u, json={"phone": cliente_ativo, "message": msg_txt}, headers=h)
+                                if r.status_code == 200:
+                                    enviado_sucesso = True
+                                else:
+                                    st.error(f"Erro Z-API: {r.text}")
+                            except Exception as e: st.error(f"Erro conexão: {e}")
+                        else:
+                            st.error("Sem credenciais Z-API configuradas.")
+
+                        # 2. GRAVA NA TABELA CORRETA (historico_mensagens)
+                        if enviado_sucesso:
+                            try:
+                                supabase.table('historico_mensagens').insert({
+                                    "cliente_id": c_id,
+                                    "wa_id": cliente_ativo, # Importante: Salva o telefone para vincular
+                                    "role": "assistant", 
+                                    "content": msg_txt,
+                                    # Se você tiver uma coluna conversa_id obrigatória, precisaria tratar aqui
+                                    # Mas como estamos criando nova linha, o banco deve gerar ID automático
+                                }).execute()
+                                
+                                # Pausa bot
                                 if not bot_on:
                                     supabase.table('clientes').update({'bot_pausado': True}).eq('id', c_id).execute()
-                            except: st.error("Erro envio Z-API")
+                                
+                                st.rerun() 
+                            except Exception as e:
+                                st.error(f"Erro ao salvar no banco: {e}")
+
                 else:
                     st.info("Selecione um cliente.")
 
-        # ======================================================================
-        # COLUNA 3: FICHA CRM (CAPIVARA)
-        # ======================================================================
+        # --- COLUNA 3: CRM (MANTIDA) ---
         with c_crm:
             if cliente_ativo:
-                st.markdown(f"### 📋 Ficha do Cliente")
-                
-                # 1. CÁLCULO DE LTV (LIFETIME VALUE)
-                # Filtra os leads desse cliente específico na lista geral carregada
-                historico_compras = [l for l in leads_list if l['cliente'] == cliente_ativo]
-                
-                total_gasto = sum([x['valor'] for x in historico_compras if x['status'] in ['Confirmado', 'Pago', 'Agendado']])
-                qtd_compras = len([x for x in historico_compras if x['status'] in ['Confirmado', 'Pago', 'Agendado']])
-                ticket_medio = total_gasto / qtd_compras if qtd_compras > 0 else 0
-                
-                # Métricas Visuais
-                m1, m2, m3 = st.columns(3)
-                m1.metric("LTV (Total)", f"R${total_gasto:,.0f}")
-                m2.metric("Compras", qtd_compras)
-                m3.metric("Ticket Médio", f"R${ticket_medio:,.0f}")
-                
-                st.divider()
-                
-                # 2. CARREGAR/CRIAR PERFIL CRM (TAGS E NOTAS)
+                st.markdown(f"### 📋 Ficha")
                 try:
                     res_crm = supabase.table('crm_clientes_finais').select('*').eq('cliente_id', c_id).eq('wa_id', cliente_ativo).execute()
-                    if res_crm.data:
-                        perfil_crm = res_crm.data[0]
-                        crm_id = perfil_crm['id']
-                    else:
-                        perfil_crm = {}
-                        crm_id = None
-                except: perfil_crm = {}; crm_id = None
-                
-                # Formulário do CRM
-                with st.form(key=f"crm_form_{cliente_ativo}"):
-                    st.markdown("##### 🏷️ Segmentação")
+                    perfil = res_crm.data[0] if res_crm.data else {}
+                    notas = perfil.get('notas', '')
+                    tags = perfil.get('tags', [])
+                    crm_id = perfil.get('id')
+                except: 
+                    notas = ""; tags = []; crm_id = None
+
+                with st.form(f"crm_{cliente_ativo}"):
+                    novas_tags = st.multiselect("Tags", ["VIP", "Novo", "Chato", "Negociação"], default=tags)
+                    novas_notas = st.text_area("Notas", value=notas, height=200)
                     
-                    tags_atuais = perfil_crm.get('tags') or []
-                    # Opções de Tags Sugeridas
-                    opcoes_tags = ["VIP", "Novo", "Recorrente", "Indicação", "Problemático", "Festa Infantil", "Casamento"]
-                    # Garante que as tags atuais estejam na lista pra não dar erro
-                    for t in tags_atuais:
-                        if t not in opcoes_tags: opcoes_tags.append(t)
-                        
-                    novas_tags = st.multiselect("Etiquetas", opcoes_tags, default=tags_atuais)
-                    
-                    st.markdown("##### 📝 Notas Internas")
-                    notas_atuais = perfil_crm.get('notas', '')
-                    novas_notas = st.text_area("Obs. (Não visível pro cliente)", value=notas_atuais, height=150, placeholder="Ex: Cliente prefere contato após as 18h. Alérgica a amendoim.")
-                    
-                    if st.form_submit_button("💾 Salvar Ficha", type="primary", use_container_width=True):
-                        dados_save = {
-                            "cliente_id": c_id,
-                            "wa_id": cliente_ativo,
-                            "tags": novas_tags,
-                            "notas": novas_notas
-                        }
-                        
+                    if st.form_submit_button("💾 Salvar"):
+                        dados = {"cliente_id": c_id, "wa_id": cliente_ativo, "tags": novas_tags, "notas": novas_notas}
                         if crm_id:
-                            # Update
-                            supabase.table('crm_clientes_finais').update(dados_save).eq('id', crm_id).execute()
+                            supabase.table('crm_clientes_finais').update(dados).eq('id', crm_id).execute()
                         else:
-                            # Insert
-                            supabase.table('crm_clientes_finais').insert(dados_save).execute()
-                        
-                        st.success("Ficha atualizada!")
-                        time.sleep(1)
+                            supabase.table('crm_clientes_finais').insert(dados).execute()
+                        st.success("Salvo!")
+                        time.sleep(0.5)
                         st.rerun()
-
-                # 3. HISTÓRICO VISUAL
-                with st.expander("📜 Histórico de Pedidos", expanded=True):
-                    if historico_compras:
-                        for compra in historico_compras:
-                            icon_st = "✅" if compra['status'] in ['Confirmado', 'Pago'] else "🟡"
-                            st.caption(f"{icon_st} **{compra['data']}** - {compra['produto']}")
-                            st.caption(f"Valor: R$ {compra['valor']:.2f}")
-                            st.markdown("---")
-                    else:
-                        st.info("Nenhum histórico encontrado.")
-
             else:
-                st.markdown("### 📋 CRM")
-                st.info("Selecione uma conversa para ver a ficha do cliente.")
+                st.info("Selecione conversa.")
 
     # --------------------------------------------------------------------------
     # TAB 2: DISPAROS EM MASSA (MARKETING)
@@ -1298,6 +1286,7 @@ else:
                         st.rerun()
 
         except Exception as e: st.error(f"Erro Cérebro: {e}")
+
 
 
 
