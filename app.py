@@ -599,208 +599,218 @@ else:
             st.info("Funil vazio. Aguardando novos leads do Otti.")
 
    # --------------------------------------------------------------------------
-    # TAB 1: INBOX REAL (CONECTADO AO HISTORICO_MENSAGENS)
+    # TAB 1: INBOX COMPLETO (HÍBRIDO + CHAT REAL + CRM BLINDADO)
     # --------------------------------------------------------------------------
     with tabs[1]:
-        st.subheader("💬 Atendimento & CRM")
+        # Dados do Usuário e Config
+        usuario_atual = st.session_state['usuario_logado'].get('nome_usuario', 'Admin')
         
-        # 1. INICIALIZAÇÃO
-        z_instancia, z_token, z_client_token = "", "", ""
-
-        # 2. BUSCA CREDENCIAIS E DADOS
+        # Verifica se o Modo Equipe está ligado
+        modo_equipe = False
         try:
-            dados_zapi = supabase.table('clientes').select('id_instance, zapi_token, client_token').eq('id', c_id).execute().data
-            if dados_zapi:
-                z_instancia = dados_zapi[0].get('id_instance', '')
-                z_token = dados_zapi[0].get('zapi_token', '')
-                z_client_token = dados_zapi[0].get('client_token', '')
+            raw_cfg = supabase.table('clientes').select('config_fluxo').eq('id', c_id).execute().data[0]['config_fluxo']
+            if isinstance(raw_cfg, str): raw_cfg = json.loads(raw_cfg)
+            modo_equipe = raw_cfg.get('modo_equipe', False)
+        except: modo_equipe = False
 
-            # Notificações
-            res_notif = supabase.table('notificacoes').select('*').eq('cliente_id', c_id).eq('lida', False).order('created_at', desc=True).execute()
-            notificacoes_pendentes = res_notif.data if res_notif.data else []
-        except: notificacoes_pendentes = []
-
-        # Alerta Notificações
-        if notificacoes_pendentes:
-            st.error(f"🔔 {len(notificacoes_pendentes)} solicitações de atendimento!")
+        st.subheader(f"💬 Inbox ({'Modo Equipe' if modo_equipe else 'Modo Simples'}) - {usuario_atual}")
+        
+        # Recupera Credenciais
+        z_instancia, z_token, z_client_token = "", "", ""
+        try:
+            d_z = supabase.table('clientes').select('id_instance, zapi_token, client_token').eq('id', c_id).execute().data[0]
+            z_instancia, z_token, z_client_token = d_z.get('id_instance'), d_z.get('zapi_token'), d_z.get('client_token')
+        except: pass
 
         st.divider()
-
-        # Layout 3 Colunas
-        c_list, c_chat, c_crm = st.columns([1, 2, 1.5])
         
-        # --- COLUNA 1: LISTA DE CLIENTES ---
+        c_list, c_chat, c_crm = st.columns([1.2, 2, 1.3])
+
+        # ======================================================================
+        # COLUNA 1: LISTA (ADAPTÁVEL)
+        # ======================================================================
         with c_list:
-            st.markdown("##### 📥 Conversas")
+            # Busca Clientes e Donos
             try:
-                # 1. Clientes do Funil
+                res_crm = supabase.table('crm_clientes_finais').select('wa_id, atendente_atual, nome').eq('cliente_id', c_id).execute().data
+                map_atendentes = {c['wa_id']: c.get('atendente_atual') for c in res_crm} if res_crm else {}
+                map_nomes = {c['wa_id']: c.get('nome') for c in res_crm} if res_crm else {}
+            except: map_atendentes = {}; map_nomes = {}
+
+            # Monta lista única (Funil + Histórico)
+            try:
                 l_funil = list(set([l['cliente'] for l in leads_list])) if 'leads_list' in locals() and leads_list else []
-                # 2. Clientes das Notificações
-                l_notif = list(set([n['origem_wa_id'] for n in notificacoes_pendentes if n.get('origem_wa_id')]))
-                # 3. Clientes com Histórico (Busca na tabela certa agora!)
-                try:
-                    # Tenta buscar IDs únicos de quem tem mensagem (pelo wa_id)
-                    res_hist = supabase.table('historico_mensagens').select('wa_id').eq('cliente_id', c_id).execute()
-                    l_hist = list(set([m['wa_id'] for m in res_hist.data if m.get('wa_id')])) if res_hist.data else []
-                except: l_hist = []
-
-                # Junta tudo
-                lista_final = sorted(list(set(l_notif + l_funil + l_hist)), key=lambda x: x in l_notif, reverse=True)
+                # Busca conversas REAIS do histórico
+                res_h = supabase.table('historico_mensagens').select('wa_id').eq('cliente_id', c_id).execute()
+                l_hist = list(set([m['wa_id'] for m in res_h.data if m.get('wa_id')])) if res_h.data else []
                 
-                if lista_final:
-                    # Remove None ou vazios da lista
-                    lista_final = [x for x in lista_final if x]
-                    
-                    opcoes_visuais = [f"🔴 {cli}" if cli in l_notif else cli for cli in lista_final]
-                    sel_idx = st.radio("Selecione:", opcoes_visuais, label_visibility="collapsed")
-                    cliente_ativo = sel_idx.replace("🔴 ", "")
-                else:
-                    cliente_ativo = None
-                    st.caption("Sem conversas.")
-            except: cliente_ativo = None
+                lista_base = sorted(list(set(l_funil + l_hist)))
+            except: lista_base = []
 
-        # --- COLUNA 2: CHAT REAL ---
+            cliente_ativo = None
+
+            # --- LÓGICA CONDICIONAL DE EXIBIÇÃO ---
+            if not modo_equipe:
+                # MODO SIMPLES: Uma lista única
+                st.markdown("##### 📥 Conversas Recentes")
+                if lista_base:
+                    # Formata nome visualmente
+                    opcoes = [f"{cli}" for cli in lista_base]
+                    cliente_ativo = st.radio("Clientes:", lista_base, label_visibility="collapsed", format_func=lambda x: f"{x} {(' - ' + map_nomes[x]) if x in map_nomes and map_nomes[x] else ''}")
+                else:
+                    st.info("Nenhuma conversa.")
+            
+            else:
+                # MODO EQUIPE: Fila vs Meus
+                fila, meus, outros = [], [], []
+                for cli in lista_base:
+                    dono = map_atendentes.get(cli)
+                    if not dono: fila.append(cli)
+                    elif dono == usuario_atual: meus.append(cli)
+                    else: outros.append(f"{cli} ({dono})")
+
+                st.markdown(f"#### 🙋‍♂️ Meus ({len(meus)})")
+                if meus:
+                    cliente_ativo = st.radio("Meus:", meus, label_visibility="collapsed", key="r_meus")
+                
+                st.markdown("---")
+                st.markdown(f"#### ⏳ Fila ({len(fila)})")
+                if fila:
+                    sel_fila = st.radio("Fila:", fila, label_visibility="collapsed", key="r_fila")
+                    if sel_fila: cliente_ativo = sel_fila # Prioriza fila se clicou lá
+
+        # ======================================================================
+        # COLUNA 2: CHAT (COM BOTÃO ASSUMIR + HISTÓRICO REAL)
+        # ======================================================================
         with c_chat:
             with st.container(border=True):
                 if cliente_ativo:
-                    # Header
-                    bh1, bh2 = st.columns([2,1])
-                    with bh1: st.markdown(f"**Chat: {cliente_ativo}**")
-                    with bh2:
-                        bot_on = st.toggle("🤖 Bot", value=True, key=f"bt_{cliente_ativo}")
-                        if st.button("🔄 Atualizar", key=f"refr_{cliente_ativo}"): st.rerun()
-                    
-                    st.divider()
-                    
-                    # Limpar notificação
-                    if cliente_ativo in l_notif:
-                         if st.button("✅ Marcar Atendido", key=f"cls_{cliente_ativo}", use_container_width=True):
-                             supabase.table('notificacoes').update({'lida': True}).eq('origem_wa_id', cliente_ativo).execute()
-                             st.rerun()
+                    dono_atual = map_atendentes.get(cliente_ativo)
+                    nome_display = map_nomes.get(cliente_ativo, cliente_ativo)
 
-                    # --- ÁREA DE MENSAGENS REAL ---
-                    chat_box = st.container(height=400)
-                    with chat_box:
-                        # 1. BUSCA HISTÓRICO NA TABELA CERTA (historico_mensagens)
-                        try:
-                            # Filtra pelo wa_id (telefone) que é o nosso identificador principal
-                            historico = supabase.table('historico_mensagens').select('*').eq('wa_id', cliente_ativo).order('created_at').execute().data
-                            
-                            if historico:
-                                for msg in historico:
-                                    # Mapeia as roles do seu JSON ('user' e 'assistant')
-                                    role_msg = msg.get('role', 'user')
-                                    conteudo = msg.get('content', '')
-                                    
-                                    # Renderiza na tela
-                                    with st.chat_message(role_msg): 
-                                        st.write(conteudo)
+                    # HEADER
+                    h1, h2 = st.columns([2,1])
+                    with h1: st.markdown(f"### 👤 {nome_display}")
+                    with h2:
+                        # Se estiver no modo equipe, mostra botões de assumir
+                        if modo_equipe:
+                            if not dono_atual:
+                                if st.button("🙋‍♂️ ASSUMIR", use_container_width=True, type="primary"):
+                                    upsert = {'cliente_id': c_id, 'wa_id': cliente_ativo, 'atendente_atual': usuario_atual}
+                                    # Verifica se existe (Lógica Upsert Manual)
+                                    check = supabase.table('crm_clientes_finais').select('id').eq('cliente_id', c_id).eq('wa_id', cliente_ativo).execute()
+                                    if check.data:
+                                        supabase.table('crm_clientes_finais').update({'atendente_atual': usuario_atual}).eq('id', check.data[0]['id']).execute()
+                                    else:
+                                        supabase.table('crm_clientes_finais').insert(upsert).execute()
+                                    st.rerun()
+                            elif dono_atual == usuario_atual:
+                                if st.button("📤 SOLTAR", use_container_width=True):
+                                    supabase.table('crm_clientes_finais').update({'atendente_atual': None}).eq('wa_id', cliente_ativo).execute()
+                                    st.rerun()
                             else:
-                                st.caption("Nenhuma mensagem encontrada para este número.")
-                                st.caption("(Se houver mensagens antigas sem o número de telefone salvo, elas não aparecerão aqui até serem vinculadas).")
-                        except Exception as e: st.error(f"Erro ao ler mensagens: {e}")
+                                st.caption(f"🔒 {dono_atual}")
+                        
+                        # Botão de Atualizar Chat (Útil para ver msg nova chegando)
+                        if st.button("🔄", key="ref_chat"): st.rerun()
 
-                        if not bot_on: st.warning("Modo manual ativo.")
+                    st.divider()
 
-                    # --- INPUT E ENVIO ---
-                    msg_txt = st.chat_input(f"Responder {cliente_ativo}...")
-                    
-                    if msg_txt:
-                        # 1. Envia Z-API
-                        enviado_sucesso = False
-                        if z_instancia and z_token:
-                            try:
-                                u = f"https://api.z-api.io/instances/{z_instancia}/token/{z_token}/send-text"
-                                h = {"Client-Token": z_client_token} if z_client_token else {}
-                                r = requests.post(u, json={"phone": cliente_ativo, "message": msg_txt}, headers=h)
-                                if r.status_code == 200:
-                                    enviado_sucesso = True
-                                else:
-                                    st.error(f"Erro Z-API: {r.text}")
-                            except Exception as e: st.error(f"Erro conexão: {e}")
-                        else:
-                            st.error("Sem credenciais Z-API configuradas.")
+                    # CHAT BOX (LENDO DO HISTORICO_MENSAGENS)
+                    chat_c = st.container(height=400)
+                    with chat_c:
+                        try:
+                            # Busca na tabela certa e ordena por data
+                            msgs = supabase.table('historico_mensagens').select('*').eq('wa_id', cliente_ativo).order('created_at').execute().data
+                            if msgs:
+                                for m in msgs:
+                                    # role: 'user' ou 'assistant'
+                                    with st.chat_message(m.get('role', 'user')): 
+                                        st.write(m.get('content', ''))
+                            else: st.caption("Início da conversa.")
+                        except Exception as e: st.error(f"Erro chat: {e}")
 
-                        # 2. GRAVA NA TABELA CORRETA (historico_mensagens)
-                        if enviado_sucesso:
-                            try:
-                                supabase.table('historico_mensagens').insert({
-                                    "cliente_id": c_id,
-                                    "wa_id": cliente_ativo, # Importante: Salva o telefone para vincular
-                                    "role": "assistant", 
-                                    "content": msg_txt,
-                                    # Se você tiver uma coluna conversa_id obrigatória, precisaria tratar aqui
-                                    # Mas como estamos criando nova linha, o banco deve gerar ID automático
-                                }).execute()
-                                
-                                # Pausa bot
-                                if not bot_on:
+                    # INPUT (Regras de bloqueio)
+                    pode_falar = True
+                    if modo_equipe:
+                        if dono_atual and dono_atual != usuario_atual: pode_falar = False # Bloqueado se for de outro
+                        if not dono_atual: pode_falar = False # Bloqueado se estiver na fila (obriga assumir)
+
+                    if pode_falar:
+                        txt = st.chat_input("Mensagem...")
+                        if txt:
+                            # 1. Envio Z-API
+                            if z_instancia and z_token:
+                                try:
+                                    requests.post(
+                                        f"https://api.z-api.io/instances/{z_instancia}/token/{z_token}/send-text",
+                                        json={"phone": cliente_ativo, "message": txt},
+                                        headers={"Client-Token": z_client_token} if z_client_token else {}
+                                    )
+                                    # 2. Salva Banco (TABELA CORRETA)
+                                    supabase.table('historico_mensagens').insert({
+                                        "cliente_id": c_id, 
+                                        "wa_id": cliente_ativo, 
+                                        "role": "assistant", 
+                                        "content": txt
+                                    }).execute()
+                                    
+                                    # Pausa Bot
                                     supabase.table('clientes').update({'bot_pausado': True}).eq('id', c_id).execute()
-                                
-                                st.rerun() 
-                            except Exception as e:
-                                st.error(f"Erro ao salvar no banco: {e}")
+                                    st.rerun()
+                                except Exception as e: st.error(f"Erro envio: {e}")
+                            else: st.error("Z-API Off")
+                    else:
+                        if not dono_atual: st.info("⚠️ Clique em ASSUMIR para responder.")
+                        else: st.error(f"🚫 Atendimento com {dono_atual}")
 
                 else:
                     st.info("Selecione um cliente.")
 
-        # --- COLUNA 3: CRM (FICHA CAPIVARA CORRIGIDA) ---
+        # ======================================================================
+        # COLUNA 3: CRM (BLINDADO CONTRA ERRO DE TAGS)
+        # ======================================================================
         with c_crm:
             if cliente_ativo:
-                st.markdown(f"### 📋 Ficha")
+                st.markdown("### 📋 Ficha")
                 
-                # 1. Carrega dados do Banco
+                # Carrega dados
                 try:
                     res_crm = supabase.table('crm_clientes_finais').select('*').eq('cliente_id', c_id).eq('wa_id', cliente_ativo).execute()
                     if res_crm.data:
                         perfil = res_crm.data[0]
-                        crm_id = perfil.get('id')
-                        notas = perfil.get('notas', '')
-                        # Garante que tags seja uma lista, mesmo se vier null
+                        crm_id = perfil['id']
+                        notas = perfil.get('notas','')
                         tags = perfil.get('tags') or []
-                    else:
-                        perfil = {}
-                        crm_id = None
-                        notas = ""
-                        tags = []
-                except: 
-                    notas = ""; tags = []; crm_id = None
+                    else: 
+                        perfil={}; crm_id=None; notas=""; tags=[]
+                except: notas=""; tags=[]; crm_id=None
 
-                # 2. Formulário Seguro
-                with st.form(f"crm_{cliente_ativo}"):
-                    # Lista de opções base
-                    opcoes_base = ["VIP", "Novo", "Chato", "Negociação", "Recorrente", "Indicação"]
+                with st.form(f"crm_mini_{cliente_ativo}"):
+                    # CORREÇÃO DO ERRO MULTISELECT:
+                    # Garante que as tags do banco estejam nas opções
+                    base_tags = ["VIP", "Novo", "Problema", "Quente", "Frio"]
+                    opcoes_finais = base_tags.copy()
                     
-                    # TRUQUE ANTI-ERRO: Adiciona as tags do banco na lista de opções se elas não existirem lá
-                    # Isso evita o StreamlitAPIException
-                    opcoes_finais = opcoes_base.copy()
-                    for t in tags:
-                        if t not in opcoes_finais:
-                            opcoes_finais.append(t)
+                    for t in tags: 
+                        if t not in opcoes_finais: opcoes_finais.append(t)
                     
-                    # Agora o multiselect nunca vai quebrar
-                    novas_tags = st.multiselect("Tags", options=opcoes_finais, default=tags)
+                    nt = st.multiselect("Tags", opcoes_finais, default=tags)
+                    nn = st.text_area("Notas", value=notas, height=150)
                     
-                    novas_notas = st.text_area("Notas Internas", value=notas, height=200)
-                    
-                    if st.form_submit_button("💾 Salvar Ficha"):
-                        dados = {
-                            "cliente_id": c_id, 
-                            "wa_id": cliente_ativo, 
-                            "tags": novas_tags, 
-                            "notas": novas_notas
-                        }
+                    if st.form_submit_button("💾 Salvar"):
+                        dat = {'cliente_id': c_id, 'wa_id': cliente_ativo, 'tags': nt, 'notas': nn}
                         
-                        if crm_id:
-                            supabase.table('crm_clientes_finais').update(dados).eq('id', crm_id).execute()
-                        else:
-                            supabase.table('crm_clientes_finais').insert(dados).execute()
+                        if crm_id: 
+                            supabase.table('crm_clientes_finais').update(dat).eq('id', crm_id).execute()
+                        else: 
+                            supabase.table('crm_clientes_finais').insert(dat).execute()
                             
-                        st.success("Salvo!")
+                        st.success("Salvo")
                         time.sleep(0.5)
                         st.rerun()
             else:
-                st.info("Selecione uma conversa para ver o CRM.")
+                st.info("Selecione para ver detalhes.")
 
     # --------------------------------------------------------------------------
     # TAB 2: DISPAROS EM MASSA (MARKETING)
@@ -1218,103 +1228,156 @@ else:
             except Exception as e: st.error("Erro tarefas")
 
     # --------------------------------------------------------------------------
-    # TAB 6: CÉREBRO (IA - Harmonizado e com Nomes das Vozes)
+    # TAB 6: CONFIGURAÇÕES GERAIS (IA + Z-API + EQUIPE)
     # --------------------------------------------------------------------------
     with tabs[6]:
-        st.subheader("Configuração da IA")
+        st.subheader("⚙️ Configurações & Equipe")
+        
+        # 1. CARREGAMENTO DE DADOS (Blindado)
         try:
-            res = supabase.table('clientes').select('config_fluxo, prompt_full').eq('id', c_id).execute()
-            if res.data:
-                d = res.data[0]
+            d = supabase.table('clientes').select('*').eq('id', c_id).execute().data[0]
+            
+            # Config Fluxo (JSON)
+            curr_c = d.get('config_fluxo')
+            if isinstance(curr_c, str): 
+                try: curr_c = json.loads(curr_c)
+                except: curr_c = {}
+            if not isinstance(curr_c, dict): curr_c = {}
+            
+            # Prompt
+            prompt_atual = d.get('prompt_full') or ""
+            
+            # Credenciais Z-API (Raiz)
+            curr_inst = d.get('id_instance', '')
+            curr_token = d.get('zapi_token', '')
+            curr_client = d.get('client_token', '')
+
+        except Exception as e:
+            st.error(f"Erro ao carregar configs: {e}")
+            d = {}; curr_c = {}
+
+        # DIVISÃO DO LAYOUT
+        c_ia, c_ops = st.columns([1.5, 1]) # IA ganha um pouco mais de espaço pro Prompt
+        
+        # ======================================================================
+        # COLUNA ESQUERDA: CÉREBRO (SUA CONFIGURAÇÃO ATUAL PRESERVADA)
+        # ======================================================================
+        with c_ia:
+            with st.container(border=True):
+                st.markdown("##### 🧠 Inteligência Artificial")
                 
-                # Leitura segura do JSON
-                curr_c = d.get('config_fluxo')
-                if isinstance(curr_c, str): 
-                    try: curr_c = json.loads(curr_c)
-                    except: curr_c = {}
-                if not isinstance(curr_c, dict): curr_c = {}
+                # Prompt (Grande)
+                new_p = st.text_area("Personalidade & Regras", value=prompt_atual, height=400)
                 
-                prompt_atual = d.get('prompt_full') or ""
+                st.divider()
                 
-                c_p1, c_p2 = st.columns([2, 1])
-                
-                # Coluna da Esquerda: Prompt
-                with c_p1:
-                    st.markdown("##### Personalidade & Regras")
-                    new_p = st.text_area("Instruções do Sistema", value=prompt_atual, height=550, label_visibility="collapsed")
-                
-                # Coluna da Direita: Ajustes Finos (Harmonizado)
-                with c_p2:
-                    st.markdown("### Configurações")
-                    st.markdown("##### 🔊 Personalidade")
-                    
+                # Configs de Voz (Do seu código original)
+                c_v1, c_v2 = st.columns(2)
+                with c_v1:
                     val_audio = bool(curr_c.get('responde_em_audio', False))
+                    aud = st.toggle("Responde Áudio?", value=val_audio)
+                
+                with c_v2:
                     val_temp = float(curr_c.get('temperature', 0.5))
-                    val_voz = curr_c.get('openai_voice', 'alloy')
+                    temp = st.slider("Criatividade", 0.0, 1.0, val_temp, 0.1)
 
-                    aud = st.toggle("Respostas em Áudio", value=val_audio)
-                    
-                    # Mapa de Vozes (Nome Amigável -> Código)
-                    mapa_vozes = {
-                        "alloy": "Alloy (Neutro)",
-                        "echo": "Echo (Suave)",
-                        "fable": "Fable (Narrador)",
-                        "onyx": "Onyx (Profundo)",
-                        "nova": "Nova (Energético)",
-                        "shimmer": "Shimmer (Calmo)"
-                    }
-                    
-                    # Se a voz atual não estiver no mapa (ex: erro antigo), usa alloy
-                    if val_voz not in mapa_vozes: val_voz = "alloy"
-                    
-                    # Selectbox mostra os valores (descrições), mas precisamos recuperar a chave
-                    voz_desc = st.selectbox(
-                        "Voz do Assistente", 
-                        list(mapa_vozes.values()), 
-                        index=list(mapa_vozes.keys()).index(val_voz)
-                    )
-                    # Recupera a chave (código) baseada na descrição selecionada
-                    voz_final = [k for k, v in mapa_vozes.items() if v == voz_desc][0]
-                    
-                    st.write("")
-                    temp = st.slider("Tom de Voz", 0.0, 1.0, val_temp, 0.1)
-                    if temp < 0.5: st.info("🤖 Modo Robótico")
-                    else: st.success("✨ Modo Humano")
+                # Mapa de Vozes (Restaurado)
+                val_voz = curr_c.get('openai_voice', 'alloy')
+                mapa_vozes = {
+                    "alloy": "Alloy (Neutro)", "echo": "Echo (Suave)",
+                    "fable": "Fable (Narrador)", "onyx": "Onyx (Profundo)",
+                    "nova": "Nova (Energético)", "shimmer": "Shimmer (Calmo)"
+                }
+                if val_voz not in mapa_vozes: val_voz = "alloy"
+                
+                voz_desc = st.selectbox("Timbre de Voz", list(mapa_vozes.values()), index=list(mapa_vozes.keys()).index(val_voz))
+                voz_final = [k for k, v in mapa_vozes.items() if v == voz_desc][0]
 
-                    st.divider()
-                    st.markdown("##### 🕒 Horário")
-                    
-                    lista_h = [f"{i:02d}:00" for i in range(24)]
-                    try: idx_h_i = lista_h.index(curr_c.get('horario_inicio', '09:00'))
-                    except: idx_h_i = 9
-                    try: idx_h_f = lista_h.index(curr_c.get('horario_fim', '18:00'))
-                    except: idx_h_f = 18
+        # ======================================================================
+        # COLUNA DIREITA: OPERACIONAL & EQUIPE (NOVIDADES)
+        # ======================================================================
+        with c_ops:
+            # 1. Z-API (Edição das credenciais)
+            with st.expander("🔌 Conexão WhatsApp (Z-API)", expanded=False):
+                n_inst = st.text_input("Instance ID", value=curr_inst)
+                n_tok = st.text_input("Instance Token", value=curr_token, type="password")
+                n_cli = st.text_input("Client Token", value=curr_client, type="password")
 
-                    c_h1, c_h2 = st.columns(2)
-                    with c_h1: h_ini = st.selectbox("Início", lista_h, index=idx_h_i)
-                    with c_h2: h_fim = st.selectbox("Fim", lista_h, index=idx_h_f)
-                    
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    
-                    if st.button("💾 SALVAR TUDO", type="primary", use_container_width=True):
-                        # Atualiza o dicionário local curr_c com os novos valores
-                        curr_c['responde_em_audio'] = aud
-                        curr_c['openai_voice'] = voz_final # Salva o código (ex: alloy)
-                        curr_c['temperature'] = temp
-                        curr_c['horario_inicio'] = h_ini
-                        curr_c['horario_fim'] = h_fim
-                        
-                        # Salva no banco
-                        supabase.table('clientes').update({
-                            'prompt_full': new_p, 
-                            'config_fluxo': curr_c
-                        }).eq('id', c_id).execute()
-                        
-                        st.success("Configurações Salvas!")
-                        time.sleep(1)
-                        st.rerun()
+            # 2. HORÁRIOS (Do seu código original)
+            with st.container(border=True):
+                st.markdown("##### 🕒 Horário de Atendimento")
+                lista_h = [f"{i:02d}:00" for i in range(24)]
+                try: idx_h_i = lista_h.index(curr_c.get('horario_inicio', '09:00'))
+                except: idx_h_i = 9
+                try: idx_h_f = lista_h.index(curr_c.get('horario_fim', '18:00'))
+                except: idx_h_f = 18
 
-        except Exception as e: st.error(f"Erro Cérebro: {e}")
+                ch1, ch2 = st.columns(2)
+                with ch1: h_ini = st.selectbox("Abre", lista_h, index=idx_h_i)
+                with ch2: h_fim = st.selectbox("Fecha", lista_h, index=idx_h_f)
+
+            # 3. GESTÃO DE EQUIPE (NOVO!)
+            with st.container(border=True):
+                st.markdown("##### 👥 Equipe")
+                
+                # Switch do Modo Equipe
+                modo_atual = curr_c.get('modo_equipe', False)
+                novo_modo = st.toggle("Modo Multi-atendentes", value=modo_atual, help="Separa chats em Fila e Meus.")
+                
+                # Cadastro Rápido
+                with st.expander("➕ Adicionar Usuário"):
+                    with st.form("add_user_form"):
+                        u_nome = st.text_input("Nome")
+                        u_mail = st.text_input("Email/Login")
+                        u_pass = st.text_input("Senha", type="password")
+                        if st.form_submit_button("Criar"):
+                            try:
+                                supabase.table('acesso_painel').insert({
+                                    'cliente_id': c_id, 'nome_usuario': u_nome, 
+                                    'email': u_mail, 'senha': u_pass, 'perfil': 'atendente'
+                                }).execute()
+                                st.toast(f"{u_nome} adicionado!")
+                                time.sleep(1); st.rerun()
+                            except Exception as e: st.error(f"Erro: {e}")
+
+                # Lista de Usuários
+                try:
+                    usrs = supabase.table('acesso_painel').select('id, nome_usuario, email').eq('cliente_id', c_id).execute().data
+                    if usrs:
+                        for u in usrs:
+                            c_u1, c_u2 = st.columns([4, 1])
+                            c_u1.text(f"👤 {u['nome_usuario']}")
+                            if c_u2.button("🗑️", key=f"del_u_{u['id']}"):
+                                supabase.table('acesso_painel').delete().eq('id', u['id']).execute()
+                                st.rerun()
+                except: pass
+
+            # ==================================================================
+            # BOTÃO MESTRE DE SALVAR (SALVA TUDO DE UMA VEZ)
+            # ==================================================================
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("💾 SALVAR TODAS AS CONFIGURAÇÕES", type="primary", use_container_width=True):
+                # Atualiza objeto JSON
+                curr_c['responde_em_audio'] = aud
+                curr_c['temperature'] = temp
+                curr_c['openai_voice'] = voz_final
+                curr_c['horario_inicio'] = h_ini
+                curr_c['horario_fim'] = h_fim
+                curr_c['modo_equipe'] = novo_modo # Salva a config da equipe
+
+                # Atualiza Banco (JSON + Prompt + Colunas Z-API)
+                supabase.table('clientes').update({
+                    'config_fluxo': curr_c,
+                    'prompt_full': new_p,
+                    'id_instance': n_inst,
+                    'zapi_token': n_tok,
+                    'client_token': n_cli
+                }).eq('id', c_id).execute()
+                
+                st.success("Sistema atualizado com sucesso!")
+                time.sleep(1.5)
+                st.rerun()
+
 
 
 
